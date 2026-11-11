@@ -38,9 +38,9 @@ Rules that keep merges cheap (follow them for every t4code change):
 4. When resolving a conflict, take upstream's version and re-apply the t4code addition on top.
    After the merge, check the "Upstream files t4code touches" list below still holds.
 
-Install note: the npmmirror registry lacks some packages t3code pins, which fails pnpm's
-`minimumReleaseAge` check. Install with `pnpm install --registry=https://registry.npmjs.org/` (if pnpm still reads the mirror
-from `~/.npmrc`, comment out its `registry=` line while installing).
+Install note: npmmirror lags npm for some pre-release versions t3code pins, which fails pnpm's
+`minimumReleaseAge` check ("version not present in registry manifest"). Route just those scopes to
+npm in `~/.npmrc`, e.g. `@distilled.cloud:registry=https://registry.npmjs.org/`.
 Node 26 is required (nvm-windows: `D:\Softwares\Nvm\v26.7.0`).
 
 ## Upstream files t4code touches
@@ -51,6 +51,15 @@ product name "T4 Code"):
 `apps/desktop/src/app/{DesktopEnvironment,DesktopStatePaths,DesktopUserData}.ts`,
 `apps/desktop/src/electron/ElectronProtocol.ts`, `apps/server/src/{os-jank,httpCors}.ts`,
 `packages/shared/src/{codexAuthHandoff,providerAuthReturnUrl}.ts`, `scripts/build-desktop-artifact.ts`.
+
+Branding (T4 Code name, `~/.t4` home including dev default and remote SSH/WSL runtimes): applied by
+`scripts/t4-rebrand.sh`, a sed pass over upstream text that `sync-upstream.sh` re-runs after every
+merge. On a text conflict take upstream's side and re-run the script; never hand-edit "T3 Code" lines.
+The MCP server now advertises "T4 Code", so `packages/shared/src/t3McpToolPresentation.ts` matches
+`t[34]` in its display-name prefix regex.
+Code identifiers (`@t3tools/*`, `T3CODE_*`, `t3.json`, the worktree-local `.t3` dev dir), docs and
+the marketing site stay upstream's. Icons (`assets/{prod,dev}`, `apps/web/public`) were retouched
+from T3 to T4 by hand; on an icon conflict keep ours (`git checkout --ours`).
 
 Features:
 

@@ -1,14 +1,10 @@
 /**
- * ONES (private deployment) client. Endpoints and fields are the ones verified against a real
- * server in the kika project (docs/ones-api-notes.md there):
- * - POST /project/api/project/auth/login {email,password} -> user.uuid, user.token, teams[].uuid
- * - POST .../team/{team}/items/graphql `tasks(filter:{assign_in:[me]})`
- * - GET  .../team/{team}/task/{uuid}/info and .../messages
- * Plain fetch keeps it a direct port; the Effect service wraps it.
+ * ONES (private deployment) client. Endpoints and fields were verified against a real server;
+ * see docs/ones-api-notes.md in the kika project before changing them.
  */
 import type { Issue, IssueAttachmentRef } from "@t3tools/contracts";
 
-export class OnesError extends Error {}
+class OnesError extends Error {}
 
 export interface OnesConnection {
   readonly baseUrl: string;
@@ -17,7 +13,6 @@ export interface OnesConnection {
   readonly password: string;
 }
 
-// oxlint-disable-next-line typescript/no-explicit-any -- raw ONES JSON
 type J = any;
 
 const TIMEOUT_MS = 30_000;
@@ -37,9 +32,7 @@ export function extractImages(html: string): IssueAttachmentRef[] {
     const src = m[0].match(/\bsrc="([^"]+)"/i)?.[1]?.replace(/&amp;/g, "&");
     if (!src) continue;
     const name =
-      m[0].match(/\bdata-uuid="([^"]+)"/i)?.[1] ??
-      src.split("?")[0]?.split("/").pop() ??
-      "image";
+      m[0].match(/\bdata-uuid="([^"]+)"/i)?.[1] ?? src.split("?")[0]?.split("/").pop() ?? "image";
     out.push({ name, url: src, isImage: true });
   }
   return out;
@@ -190,7 +183,8 @@ export class OnesClient {
     if (!res.ok) throw new OnesError(`Attachment download failed: HTTP ${res.status}`);
     return {
       bytes: new Uint8Array(await res.arrayBuffer()),
-      mimeType: res.headers.get("content-type")?.split(";")[0]?.trim() || "application/octet-stream",
+      mimeType:
+        res.headers.get("content-type")?.split(";")[0]?.trim() || "application/octet-stream",
     };
   }
 }

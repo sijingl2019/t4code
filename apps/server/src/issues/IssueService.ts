@@ -3,8 +3,8 @@
  * ONES issue integration: listing/reading issues for bound projects, keeping bound checkouts
  * present as projects, and the `#!auto` auto-development poller.
  */
-import { spawn } from "node:child_process";
-import * as NodeFs from "node:fs/promises";
+import * as NodeChildProcess from "node:child_process";
+import * as NodeFSP from "node:fs/promises";
 import * as NodePath from "node:path";
 
 import {
@@ -26,6 +26,7 @@ import {
   type ProjectCloneStartInput,
   type ServerSettings,
 } from "@t3tools/contracts";
+import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -61,9 +62,9 @@ const errorMessage = (cause: unknown): string =>
 const fail = (cause: unknown) => new IssueTrackerError({ message: errorMessage(cause) });
 
 /** Comparable form of a local path (Windows paths are case-insensitive). */
-export function normalizeLocalPath(path: string): string {
+function normalizeLocalPath(path: string, platform: NodeJS.Platform): string {
   const resolved = NodePath.resolve(path).replace(/[\\/]+$/, "");
-  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+  return platform === "win32" ? resolved.toLowerCase() : resolved;
 }
 
 /** Prompt text for an issue. `auto` adds the no-commit rule and drops the marker. */
@@ -81,11 +82,17 @@ export function buildIssuePrompt(
   if (issue.comments.length > 0) {
     lines.push("", "## 评论");
     for (const comment of issue.comments) {
-      lines.push(`- ${comment.author}${comment.createdAt ? ` (${comment.createdAt})` : ""}: ${comment.text}`);
+      lines.push(
+        `- ${comment.author}${comment.createdAt ? ` (${comment.createdAt})` : ""}: ${comment.text}`,
+      );
     }
   }
   if (options.attachmentPaths && options.attachmentPaths.length > 0) {
-    lines.push("", "## 附件（已下载到本地）", ...options.attachmentPaths.map((path) => `- ${path}`));
+    lines.push(
+      "",
+      "## 附件（已下载到本地）",
+      ...options.attachmentPaths.map((path) => `- ${path}`),
+    );
   }
   if (options.auto) {
     lines.push(
@@ -114,7 +121,9 @@ function approveGitCredentials(repoUrl: string, username: string, token: string)
   const url = new URL(repoUrl);
   if (url.protocol !== "https:" && url.protocol !== "http:") return Promise.resolve();
   return new Promise((resolve, reject) => {
-    const child = spawn("git", ["credential", "approve"], { stdio: ["pipe", "ignore", "pipe"] });
+    const child = NodeChildProcess.spawn("git", ["credential", "approve"], {
+      stdio: ["pipe", "ignore", "pipe"],
+    });
     let stderr = "";
     child.stderr.on("data", (chunk) => (stderr += String(chunk)));
     child.on("error", reject);
@@ -128,12 +137,13 @@ function approveGitCredentials(repoUrl: string, username: string, token: string)
 }
 
 const pathExists = (path: string) =>
-  NodeFs.stat(path).then(
+  NodeFSP.stat(path).then(
     () => true,
     () => false,
   );
 
-const safeFileName = (name: string) => name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").slice(0, 120);
+const safeFileName = (name: string) =>
+  name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").slice(0, 120);
 
 export const layer = Layer.effect(
   IssueService,
@@ -143,6 +153,7 @@ export const layer = Layer.effect(
     const config = yield* ServerConfig.ServerConfig;
     const threadLaunch = yield* ThreadLaunchService.ThreadLaunchService;
     const scheduler = yield* Scheduler.Scheduler;
+    const platform = yield* HostProcess.Platform;
 
     // One client per connection so its login token is reused.
     let client: { key: string; value: OnesClient } | null = null;
@@ -176,9 +187,9 @@ export const layer = Layer.effect(
       });
 
     const bindingsFor = (settings: ServerSettings, project: Project) => {
-      const root = normalizeLocalPath(project.workspaceRoot);
+      const root = normalizeLocalPath(project.workspaceRoot, platform);
       return settings.issueProjectBindings.filter(
-        (binding) => normalizeLocalPath(binding.localPath) === root,
+        (binding) => normalizeLocalPath(binding.localPath, platform) === root,
       );
     };
 
@@ -190,41 +201,48 @@ export const layer = Layer.effect(
       );
     };
 
-    const list: IssueService["Service"]["list"] = Effect.fn("IssueService.list")(function* (
-      projectId,
-    ) {
-      const settings = yield* readSettings;
-      const project = yield* projects.getById(projectId).pipe(Effect.mapError(fail));
-      if (Option.isNone(project)) return [];
-      return yield* issuesForProject(settings, project.value);
-    });
+    const list: IssueService["Service"]["list"] = Effect.fn("IssueService.list")(
+      function* (projectId) {
+        const settings = yield* readSettings;
+        const project = yield* projects.getById(projectId).pipe(Effect.mapError(fail));
+        if (Option.isNone(project)) return [];
+        return yield* issuesForProject(settings, project.value);
+      },
+    );
 
-    const get: IssueService["Service"]["get"] = Effect.fn("IssueService.get")(function* (
-      issueUuid,
-    ) {
-      const settings = yield* readSettings;
-      const ones = clientFor(settings);
-      const issue = yield* Effect.tryPromise({ try: () => ones.loadIssue(issueUuid), catch: fail });
-      const files: IssueFile[] = [];
-      const skipped: string[] = [];
-      for (const attachment of issue.attachments) {
-        const downloaded = yield* Effect.tryPromise(() => ones.download(attachment.url)).pipe(
-          Effect.option,
-        );
-        if (Option.isNone(downloaded) || downloaded.value.bytes.byteLength > MAX_INLINE_FILE_BYTES) {
-          skipped.push(`${attachment.name}: ${attachment.url}`);
-          continue;
-        }
-        files.push({
-          name: attachment.name,
-          mimeType: downloaded.value.mimeType,
-          dataBase64: Buffer.from(downloaded.value.bytes).toString("base64"),
+    const get: IssueService["Service"]["get"] = Effect.fn("IssueService.get")(
+      function* (issueUuid) {
+        const settings = yield* readSettings;
+        const ones = clientFor(settings);
+        const issue = yield* Effect.tryPromise({
+          try: () => ones.loadIssue(issueUuid),
+          catch: fail,
         });
-      }
-      let prompt = buildIssuePrompt(issue, { auto: false });
-      if (skipped.length > 0) prompt += `\n\n## 其他附件\n${skipped.map((s) => `- ${s}`).join("\n")}`;
-      return { issue, prompt, files };
-    });
+        const files: IssueFile[] = [];
+        const skipped: string[] = [];
+        for (const attachment of issue.attachments) {
+          const downloaded = yield* Effect.tryPromise(() => ones.download(attachment.url)).pipe(
+            Effect.option,
+          );
+          if (
+            Option.isNone(downloaded) ||
+            downloaded.value.bytes.byteLength > MAX_INLINE_FILE_BYTES
+          ) {
+            skipped.push(`${attachment.name}: ${attachment.url}`);
+            continue;
+          }
+          files.push({
+            name: attachment.name,
+            mimeType: downloaded.value.mimeType,
+            dataBase64: Buffer.from(downloaded.value.bytes).toString("base64"),
+          });
+        }
+        let prompt = buildIssuePrompt(issue, { auto: false });
+        if (skipped.length > 0)
+          prompt += `\n\n## 其他附件\n${skipped.map((s) => `- ${s}`).join("\n")}`;
+        return { issue, prompt, files };
+      },
+    );
 
     const testConnection: IssueService["Service"]["testConnection"] = readSettings.pipe(
       Effect.flatMap((settings) => {
@@ -237,66 +255,66 @@ export const layer = Layer.effect(
       }),
     );
 
-    const syncBinding = <E>(
+    const syncBinding = Effect.fn("IssueService.syncBinding")(function* (
       settings: ServerSettings,
       binding: IssueProjectBinding,
-      startClone: (input: ProjectCloneStartInput) => Effect.Effect<unknown, E>,
-    ) =>
-      Effect.gen(function* () {
-        const localPath = NodePath.resolve(binding.localPath);
-        const existing = yield* projects.getByWorkspaceRoot(localPath).pipe(Effect.mapError(fail));
-        if (Option.isSome(existing)) return { outcome: "linked" as const, message: "已在项目列表中" };
-        const title = NodePath.basename(localPath);
-        const projectId = ProjectId.make(crypto.randomUUID());
-        if (yield* Effect.promise(() => pathExists(localPath))) {
-          yield* projects
-            .bootstrap({
-              commandId: CommandId.make(`ones-binding-create:${projectId}`),
-              projectId,
-              title,
-              workspaceRoot: localPath,
-            })
-            .pipe(Effect.mapError(fail));
-          return { outcome: "created" as const, message: "已添加到项目列表" };
-        }
-        if (binding.repoUrl === "") {
-          return { outcome: "skipped" as const, message: "本地目录不存在且未配置仓库地址" };
-        }
-        const { username, token } = settings.issueRepoCredentials;
-        const tokenValue = settingsSecretLiteral(token);
-        if (username !== "" && tokenValue !== "") {
-          yield* Effect.tryPromise({
-            try: () => approveGitCredentials(binding.repoUrl, username, tokenValue),
-            catch: fail,
-          });
-        }
-        yield* Effect.promise(() => NodeFs.mkdir(NodePath.dirname(localPath), { recursive: true }));
-        yield* startClone({
-          projectId,
-          title,
-          createdAt: new Date().toISOString(),
-          remoteUrl: binding.repoUrl,
-          destinationPath: localPath,
-        }).pipe(Effect.mapError(fail));
-        return { outcome: "cloning" as const, message: "正在克隆，完成后自动加入项目列表" };
-      }).pipe(
-        Effect.catch((error: IssueTrackerError) =>
-          Effect.succeed({ outcome: "failed" as const, message: error.message }),
-        ),
-        Effect.map((result) => ({ localPath: binding.localPath, ...result })),
-      );
+      startClone: (input: ProjectCloneStartInput) => Effect.Effect<unknown, IssueTrackerError>,
+    ) {
+      const localPath = NodePath.resolve(binding.localPath);
+      const existing = yield* projects.getByWorkspaceRoot(localPath).pipe(Effect.mapError(fail));
+      if (Option.isSome(existing)) return { outcome: "linked" as const, message: "已在项目列表中" };
+      const title = NodePath.basename(localPath);
+      const projectId = ProjectId.make(crypto.randomUUID());
+      if (yield* Effect.promise(() => pathExists(localPath))) {
+        yield* projects
+          .bootstrap({
+            commandId: CommandId.make(`ones-binding-create:${projectId}`),
+            projectId,
+            title,
+            workspaceRoot: localPath,
+          })
+          .pipe(Effect.mapError(fail));
+        return { outcome: "created" as const, message: "已添加到项目列表" };
+      }
+      if (binding.repoUrl === "") {
+        return { outcome: "skipped" as const, message: "本地目录不存在且未配置仓库地址" };
+      }
+      const { username, token } = settings.issueRepoCredentials;
+      const tokenValue = settingsSecretLiteral(token);
+      if (username !== "" && tokenValue !== "") {
+        yield* Effect.tryPromise({
+          try: () => approveGitCredentials(binding.repoUrl, username, tokenValue),
+          catch: fail,
+        });
+      }
+      yield* Effect.promise(() => NodeFSP.mkdir(NodePath.dirname(localPath), { recursive: true }));
+      yield* startClone({
+        projectId,
+        title,
+        createdAt: new Date().toISOString(),
+        remoteUrl: binding.repoUrl,
+        destinationPath: localPath,
+      });
+      return { outcome: "cloning" as const, message: "正在克隆，完成后自动加入项目列表" };
+    });
 
     const syncBindings: IssueService["Service"]["syncBindings"] = (startClone) =>
       settingsService.getSettings.pipe(
         Effect.flatMap((settings) =>
           Effect.forEach(settings.issueProjectBindings, (binding) =>
-            syncBinding(settings, binding, startClone),
+            syncBinding(settings, binding, (input) =>
+              startClone(input).pipe(Effect.mapError(fail)),
+            ).pipe(
+              Effect.catch((error: IssueTrackerError) =>
+                Effect.succeed({ outcome: "failed" as const, message: error.message }),
+              ),
+              Effect.map((result) => ({ localPath: binding.localPath, ...result })),
+            ),
           ),
         ),
         Effect.orElseSucceed(() => []),
       );
 
-    // ---- Auto development -------------------------------------------------
     let lastPollAt = 0;
     // Launch is idempotent per commandId; this only saves the repeat round trips.
     const launched = new Set<string>();
@@ -309,9 +327,9 @@ export const layer = Layer.effect(
           for (const [index, attachment] of issue.attachments.entries()) {
             try {
               const { bytes } = await ones.download(attachment.url);
-              await NodeFs.mkdir(dir, { recursive: true });
+              await NodeFSP.mkdir(dir, { recursive: true });
               const file = NodePath.join(dir, `${index + 1}-${safeFileName(attachment.name)}`);
-              await NodeFs.writeFile(file, bytes);
+              await NodeFSP.writeFile(file, bytes);
               paths.push(file);
             } catch {
               paths.push(`${attachment.name}（下载失败）: ${attachment.url}`);
@@ -322,41 +340,44 @@ export const layer = Layer.effect(
         catch: fail,
       });
 
-    const launchAuto = (settings: ServerSettings, project: Project, issue: Issue) =>
-      Effect.gen(function* () {
-        const modelSelection = project.defaultModelSelection ?? settings.defaultModelSelection;
-        if (modelSelection === null) {
-          yield* Effect.logWarning("ONES auto-dev skipped: no default model for project", {
-            project: project.title,
-            issue: issue.key,
-          });
-          return;
-        }
-        const attachmentPaths = yield* downloadForAuto(clientFor(settings), issue);
-        yield* threadLaunch
-          .launch({
-            commandId: CommandId.make(`ones-auto:${issue.uuid}`),
-            projectId: project.id,
-            title: `[${issue.key}] ${issue.title}`.slice(0, 200),
-            modelSelection,
-            runtimeMode: settings.defaultRuntimeMode,
-            interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
-            workspaceStrategy:
-              project.defaultThreadEnvMode === "worktree"
-                ? { type: "worktree", baseRef: "HEAD" }
-                : { type: "root" },
-            initialMessage: {
-              messageId: MessageId.make(`ones-auto-message:${issue.uuid}`),
-              text: buildIssuePrompt(issue, { auto: true, attachmentPaths }),
-              attachments: [],
-            },
-            createdBy: "system",
-            creationSource: "server",
-          })
-          .pipe(Effect.mapError(fail));
-        launched.add(issue.uuid);
-        yield* Effect.logInfo("ONES auto-dev thread launched", { issue: issue.key });
-      });
+    const launchAuto = Effect.fn("IssueService.launchAuto")(function* (
+      settings: ServerSettings,
+      project: Project,
+      issue: Issue,
+    ) {
+      const modelSelection = project.defaultModelSelection ?? settings.defaultModelSelection;
+      if (modelSelection === null) {
+        yield* Effect.logWarning("ONES auto-dev skipped: no default model for project", {
+          project: project.title,
+          issue: issue.key,
+        });
+        return;
+      }
+      const attachmentPaths = yield* downloadForAuto(clientFor(settings), issue);
+      yield* threadLaunch
+        .launch({
+          commandId: CommandId.make(`ones-auto:${issue.uuid}`),
+          projectId: project.id,
+          title: `[${issue.key}] ${issue.title}`.slice(0, 200),
+          modelSelection,
+          runtimeMode: settings.defaultRuntimeMode,
+          interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+          workspaceStrategy:
+            project.defaultThreadEnvMode === "worktree"
+              ? { type: "worktree", baseRef: "HEAD" }
+              : { type: "root" },
+          initialMessage: {
+            messageId: MessageId.make(`ones-auto-message:${issue.uuid}`),
+            text: buildIssuePrompt(issue, { auto: true, attachmentPaths }),
+            attachments: [],
+          },
+          createdBy: "system",
+          creationSource: "server",
+        })
+        .pipe(Effect.mapError(fail));
+      launched.add(issue.uuid);
+      yield* Effect.logInfo("ONES auto-dev thread launched", { issue: issue.key });
+    });
 
     const pollAutoDev = Effect.gen(function* () {
       const settings = yield* readSettings;
