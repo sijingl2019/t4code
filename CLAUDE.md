@@ -73,7 +73,7 @@ Features:
   `issueAutoDev`): service in `apps/server/src/issues/`, RPCs `issues.*` in
   `packages/contracts/src/{issues,rpc}.ts`, scopes in `apps/server/src/auth/RpcAuthorization.ts`,
   handlers + shared `projectCloneHooks` in `apps/server/src/ws.ts`, layer in
-  `apps/server/src/orchestration-v2/runtimeLayer.ts`, secrets in `apps/server/src/settingsSecrets.ts`.
+  `apps/server/src/orchestration-v2/runtimeLayer.ts`, secrets in `apps/server/src/settingsSecrets.ts`, span aggregates in `apps/server/src/observability/RpcInstrumentation.ts`, mock layer in `apps/server/src/ws.test.ts`.
   Client: commands in `packages/client-runtime/src/state/server.ts`, guarded scopes in
   `packages/contracts/src/clientRpcPermissions.ts`, settings form `OnesIssueSettings.tsx` (mounted in
   `SourceControlSettings.tsx`), issue picker `components/sidebar/OnesIssuePickerDialog.tsx` (opened from
