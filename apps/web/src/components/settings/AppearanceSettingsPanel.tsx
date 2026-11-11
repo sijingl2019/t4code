@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE,
   DEFAULT_UNIFIED_SETTINGS,
@@ -8,9 +8,11 @@ import {
   type EnvironmentIdentificationMode,
   MAX_APPEARANCE_CONTRAST,
   MAX_GLASS_OPACITY,
+  MAX_WINDOW_BACKGROUND_OPACITY,
   MAX_PANEL_ANIMATION_DURATION_MS,
   MIN_APPEARANCE_CONTRAST,
   MIN_GLASS_OPACITY,
+  MIN_WINDOW_BACKGROUND_OPACITY,
   MIN_PANEL_ANIMATION_DURATION_MS,
 } from "@t3tools/contracts/settings";
 import {
@@ -24,6 +26,7 @@ import { useTheme } from "../../hooks/useTheme";
 import { useScopedSettings, useUpdateScopedSettings } from "./useScopedSettings";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Switch } from "../ui/switch";
+import { Button } from "../ui/button";
 import { ThemeLibrary } from "./ThemeSettings";
 import {
   SettingResetButton,
@@ -36,6 +39,8 @@ import { AdvancedSettings } from "./AdvancedSettings";
 import { PanelAnimationsPreview } from "./PanelAnimationsPreview";
 import { TypographySection } from "./TypographySettings";
 import { ThreadDetailsItemsRow } from "./ThreadDetailsItemsRow";
+
+const MAX_WINDOW_BACKGROUND_BYTES = 10 * 1024 * 1024;
 
 const ENVIRONMENT_IDENTIFICATION_LABELS: Record<EnvironmentIdentificationMode, string> = {
   artwork: "Artwork",
@@ -97,6 +102,8 @@ export function AppearanceSettingsPanel() {
   } = useTheme();
   const customThemes = useCustomThemes();
   const [isImportThemeOpen, setIsImportThemeOpen] = useState(false);
+  const backgroundFileInputRef = useRef<HTMLInputElement>(null);
+  const [backgroundError, setBackgroundError] = useState<string | null>(null);
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
   const environmentStageLabel = useEnvironmentStageLabel();
@@ -126,6 +133,13 @@ export function AppearanceSettingsPanel() {
   const glassOpacitySliderStyle = {
     "--settings-slider-progress": `${glassOpacityRatio * 100}%`,
     "--settings-slider-fill-offset": `${0.5 - glassOpacityRatio}rem`,
+  } as CSSProperties;
+  const windowBackgroundRatio =
+    (settings.windowBackgroundOpacity - MIN_WINDOW_BACKGROUND_OPACITY) /
+    (MAX_WINDOW_BACKGROUND_OPACITY - MIN_WINDOW_BACKGROUND_OPACITY);
+  const windowBackgroundSliderStyle = {
+    "--settings-slider-progress": `${windowBackgroundRatio * 100}%`,
+    "--settings-slider-fill-offset": `${0.5 - windowBackgroundRatio}rem`,
   } as CSSProperties;
   const appearanceContrastRatio =
     (settings.appearanceContrast - MIN_APPEARANCE_CONTRAST) /
@@ -253,6 +267,100 @@ export function AppearanceSettingsPanel() {
                 type="range"
                 value={settings.glassOpacity}
               />
+            </div>
+          }
+        />
+
+        <SettingsRow
+          {...searchableSetting("window-background")}
+          description="Show an image across the whole window. Lower opacity keeps text readable."
+          resetAction={
+            settings.windowBackgroundImage !== DEFAULT_UNIFIED_SETTINGS.windowBackgroundImage ? (
+              <SettingResetButton
+                label="window background"
+                onClick={() =>
+                  updateSettings({
+                    windowBackgroundImage: DEFAULT_UNIFIED_SETTINGS.windowBackgroundImage,
+                    windowBackgroundOpacity: DEFAULT_UNIFIED_SETTINGS.windowBackgroundOpacity,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <div className="flex w-full flex-col gap-2 sm:w-52">
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => backgroundFileInputRef.current?.click()}
+                >
+                  Choose image…
+                </Button>
+                {settings.windowBackgroundImage !== "" ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => updateSettings({ windowBackgroundImage: "" })}
+                  >
+                    Clear
+                  </Button>
+                ) : null}
+                <input
+                  ref={backgroundFileInputRef}
+                  accept="image/*"
+                  className="hidden"
+                  type="file"
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0];
+                    event.currentTarget.value = "";
+                    if (!file) return;
+                    // The data URL lives in client settings; keep it small enough to persist.
+                    if (file.size > MAX_WINDOW_BACKGROUND_BYTES) {
+                      setBackgroundError("Image must be 10 MB or smaller.");
+                      return;
+                    }
+                    setBackgroundError(null);
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      if (typeof reader.result === "string") {
+                        updateSettings({ windowBackgroundImage: reader.result });
+                      }
+                    };
+                    reader.onerror = () => setBackgroundError("Could not read that image.");
+                    reader.readAsDataURL(file);
+                  }}
+                />
+              </div>
+              {backgroundError ? (
+                <p className="text-xs text-destructive">{backgroundError}</p>
+              ) : null}
+              <div className="flex items-center gap-3">
+                <output
+                  className="min-w-12 rounded-md bg-muted px-2 py-1 text-center font-mono text-xs font-medium tabular-nums text-foreground"
+                  htmlFor="window-background-opacity"
+                >
+                  {settings.windowBackgroundOpacity}%
+                </output>
+                <input
+                  aria-label="Window background opacity"
+                  className="settings-slider min-w-0 flex-1"
+                  disabled={settings.windowBackgroundImage === ""}
+                  id="window-background-opacity"
+                  max={MAX_WINDOW_BACKGROUND_OPACITY}
+                  min={MIN_WINDOW_BACKGROUND_OPACITY}
+                  onChange={(event) => {
+                    const windowBackgroundOpacity = Number(event.currentTarget.value);
+                    if (Number.isInteger(windowBackgroundOpacity)) {
+                      updateSettings({ windowBackgroundOpacity });
+                    }
+                  }}
+                  step={1}
+                  style={windowBackgroundSliderStyle}
+                  type="range"
+                  value={settings.windowBackgroundOpacity}
+                />
+              </div>
             </div>
           }
         />

@@ -1615,6 +1615,26 @@ export function createServerEnvironmentAtoms<R, E>(
       label: "environment-data:server:check-otlp-endpoint",
       tag: WS_METHODS.serverCheckOtlpEndpoint,
     }),
+    listIssues: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:issues:list",
+      tag: WS_METHODS.issuesList,
+    }),
+    getIssue: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:issues:get",
+      tag: WS_METHODS.issuesGet,
+    }),
+    testIssueConnection: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:issues:test-connection",
+      tag: WS_METHODS.issuesTestConnection,
+    }),
+    syncIssueBindings: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:issues:sync-bindings",
+      tag: WS_METHODS.issuesSyncBindings,
+      concurrency: {
+        mode: "singleFlight",
+        key: ({ environmentId }) => environmentId,
+      },
+    }),
     listTextGeneratorModels: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:server:list-text-generator-models",
       tag: WS_METHODS.serverListTextGeneratorModels,

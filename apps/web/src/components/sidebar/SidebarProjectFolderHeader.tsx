@@ -1,7 +1,7 @@
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
-import { ChevronDownIcon, SquarePenIcon } from "lucide-react";
-import { memo } from "react";
+import { ChevronDownIcon, SquarePenIcon, TicketIcon } from "lucide-react";
+import { memo, useState } from "react";
 
 import { cn } from "~/lib/utils";
 import type { SidebarProjectSnapshot } from "../../sidebarProjectGrouping";
@@ -10,6 +10,7 @@ import { resolveSidebarFolderDot, resolveThreadLastVisitedAt } from "../Sidebar.
 import { ProjectFavicon } from "../ProjectFavicon";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { OnesIssuePickerDialog, useHasIssueBinding } from "./OnesIssuePickerDialog";
 
 const FOLDER_DOT_CLASS_NAME = {
   attention: "bg-warning",
@@ -46,6 +47,8 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
   const { group, collapsed, hiddenThreads } = props;
   const rowId = sidebarFolderRowId(group.projectKey);
   const localLastVisitedAtById = useUiStateStore((state) => state.threadLastVisitedAtById);
+  const hasIssueBinding = useHasIssueBinding(group.environmentId, group.workspaceRoot);
+  const [issuePickerOpen, setIssuePickerOpen] = useState(false);
   const dot = collapsed
     ? resolveSidebarFolderDot(
         hiddenThreads.map((thread) => ({
@@ -85,10 +88,12 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
           </span>
         ) : null}
         {collapsed && hiddenThreads.length > 0 ? (
-          <span className="shrink-0 text-xs tabular-nums text-sidebar-muted-foreground group-hover/project-folder:invisible pointer-coarse:invisible">
+          <span className="shrink-0 text-xs tabular-nums text-sidebar-muted-foreground">
             {hiddenThreads.length}
           </span>
         ) : null}
+        {/* Room for the always-visible new-thread button that sits over this slot. */}
+        <span aria-hidden className={cn("shrink-0", hasIssueBinding ? "w-12" : "w-6")} />
         <ChevronDownIcon
           aria-hidden
           className={cn(
@@ -97,8 +102,25 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
           )}
         />
       </button>
-      {/* Sits over the count, which hides on hover, and left of the chevron. */}
-      <span className="absolute inset-y-0 right-6 flex items-center opacity-0 focus-within:opacity-100 group-hover/project-folder:opacity-100 pointer-coarse:opacity-100">
+      {/* Always visible, on the same line as the project name, left of the chevron. */}
+      <span className="absolute inset-y-0 right-6 flex items-center">
+        {hasIssueBinding ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  size="icon-xs"
+                  variant="ghost-muted"
+                  aria-label={`New thread from a ONES issue in ${group.displayName}`}
+                  onClick={() => setIssuePickerOpen(true)}
+                />
+              }
+            >
+              <TicketIcon aria-hidden />
+            </TooltipTrigger>
+            <TooltipPopup>New thread from a ONES issue</TooltipPopup>
+          </Tooltip>
+        ) : null}
         <Tooltip>
           <TooltipTrigger
             render={
@@ -116,6 +138,15 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
           <TooltipPopup>New thread in {group.displayName}</TooltipPopup>
         </Tooltip>
       </span>
+      {hasIssueBinding ? (
+        <OnesIssuePickerDialog
+          open={issuePickerOpen}
+          onOpenChange={setIssuePickerOpen}
+          environmentId={group.environmentId}
+          projectId={group.id}
+          projectName={group.displayName}
+        />
+      ) : null}
     </li>
   );
 });

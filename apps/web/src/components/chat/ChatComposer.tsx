@@ -66,6 +66,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { usePendingIssueFiles } from "../../issues/pendingIssueFiles";
 import { flushSync } from "react-dom";
 import {
   clampCollapsedComposerCursor,
@@ -2706,6 +2707,17 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   });
 
   const attachDroppedThreadFile = useEffectEvent((file: File) => addComposerAttachments([file]));
+  const pendingIssueFiles = usePendingIssueFiles((state) =>
+    activeThreadId ? state.byThreadId[activeThreadId] : undefined,
+  );
+  const attachPendingIssueFiles = useEffectEvent((threadId: string) => {
+    const files = usePendingIssueFiles.getState().take(threadId);
+    if (files) void addComposerAttachments([...files]);
+  });
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- attaches files the ONES issue picker parked for this new draft
+  useEffect(() => {
+    if (activeThreadId && pendingIssueFiles) attachPendingIssueFiles(activeThreadId);
+  }, [activeThreadId, pendingIssueFiles]);
   const importDroppedThread = useEffectEvent(
     async (ref: ScopedThreadRef, isActive: () => boolean) => {
       const targetKey = attachmentTargetKey;

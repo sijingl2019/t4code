@@ -57,6 +57,38 @@ import { registerOpenFavoriteEditorCommand } from "./components/chat/OpenInPicke
 import { environmentThreadShells, threadEnvironment } from "./state/threads";
 import { resolveThreadRouteTarget } from "./threadRoutes";
 
+/**
+ * Draws the background image over the whole window (sidebar, chat, terminal alike).
+ * It sits on top with pointer-events off, so no panel needs a translucent surface.
+ * ponytail: overlay dims text contrast slightly; switch panel tokens to color-mix
+ * transparency if an "image underneath" look is wanted.
+ */
+function applyWindowBackground(image: string, opacityPercent: number): void {
+  const id = "t4-window-background";
+  let layer = document.getElementById(id);
+  if (image === "") {
+    layer?.remove();
+    return;
+  }
+  if (layer === null) {
+    layer = document.createElement("div");
+    layer.id = id;
+    layer.setAttribute("aria-hidden", "true");
+    Object.assign(layer.style, {
+      position: "fixed",
+      inset: "0",
+      pointerEvents: "none",
+      zIndex: "2147483646",
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+      backgroundRepeat: "no-repeat",
+    });
+    document.body.append(layer);
+  }
+  layer.style.backgroundImage = `url("${image}")`;
+  layer.style.opacity = String(opacityPercent / 100);
+}
+
 /** Writes appearance settings onto the document, touching only the groups that changed. */
 function startClientAppearance(): void {
   const root = document.documentElement;
@@ -89,6 +121,12 @@ function startClientAppearance(): void {
       } else {
         root.style.removeProperty("--glass-blur");
       }
+    }
+    if (
+      previous?.windowBackgroundImage !== settings.windowBackgroundImage ||
+      previous.windowBackgroundOpacity !== settings.windowBackgroundOpacity
+    ) {
+      applyWindowBackground(settings.windowBackgroundImage, settings.windowBackgroundOpacity);
     }
     if (
       previous?.fontFamilySans !== settings.fontFamilySans ||

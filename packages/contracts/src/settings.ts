@@ -143,6 +143,17 @@ export const GlassOpacity = Schema.Int.check(
   }),
 );
 export type GlassOpacity = typeof GlassOpacity.Type;
+
+/** Opacity (percent) of the full-window background image overlay. */
+export const MIN_WINDOW_BACKGROUND_OPACITY = 0;
+export const MAX_WINDOW_BACKGROUND_OPACITY = 100;
+export const WindowBackgroundOpacity = Schema.Int.check(
+  Schema.isBetween({
+    minimum: MIN_WINDOW_BACKGROUND_OPACITY,
+    maximum: MAX_WINDOW_BACKGROUND_OPACITY,
+  }),
+);
+export type WindowBackgroundOpacity = typeof WindowBackgroundOpacity.Type;
 const DEFAULT_GLASS_OPACITY: GlassOpacity = 80;
 
 export const MIN_APPEARANCE_CONTRAST = 50;
@@ -464,6 +475,11 @@ export const ClientSettingsSchema = Schema.Struct({
   glassOpacity: GlassOpacity.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_GLASS_OPACITY)),
   ),
+  /** Data URL of an image drawn over the whole window; empty disables it. */
+  windowBackgroundImage: Schema.String.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
+  windowBackgroundOpacity: WindowBackgroundOpacity.pipe(
+    Schema.withDecodingDefault(Effect.succeed(15)),
+  ),
   fontSizeInterface: InterfaceFontSize.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_INTERFACE_FONT_SIZE)),
   ),
@@ -510,7 +526,7 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   proactivePanelsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   showSkillsInSlashMenu: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
-  boringSidebarEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  boringSidebarEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   boringSidebarMultilineRows: Schema.Boolean.pipe(
     Schema.withDecodingDefault(Effect.succeed(false)),
   ),
@@ -1321,6 +1337,50 @@ export const StorageCleanupSettings = Schema.Struct({
 });
 export type StorageCleanupSettings = typeof StorageCleanupSettings.Type;
 
+/** ONES (private deployment) issue tracker connection. Credentials are stored as secrets. */
+export const OnesSettings = Schema.Struct({
+  baseUrl: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
+  /** Empty uses the first team the login returns. */
+  teamUuid: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
+  email: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
+  password: SettingsSecretValue.pipe(
+    Schema.withDecodingDefault(Effect.succeed("")),
+    secretSetting,
+  ),
+});
+export type OnesSettings = typeof OnesSettings.Type;
+
+/**
+ * Credentials for cloning bound repositories over HTTPS (e.g. Bitbucket username + access token).
+ * ponytail: one credential for all bound repos; per-binding credentials when repos span accounts.
+ */
+export const IssueRepoCredentials = Schema.Struct({
+  username: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
+  token: SettingsSecretValue.pipe(Schema.withDecodingDefault(Effect.succeed("")), secretSetting),
+});
+export type IssueRepoCredentials = typeof IssueRepoCredentials.Type;
+
+/** Maps an ONES project to a local checkout; a missing checkout is cloned from `repoUrl`. */
+export const IssueProjectBinding = Schema.Struct({
+  onesProjectUuid: TrimmedNonEmptyString,
+  localPath: TrimmedNonEmptyString,
+  repoUrl: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
+});
+export type IssueProjectBinding = typeof IssueProjectBinding.Type;
+
+export const MIN_ISSUE_AUTO_DEV_INTERVAL_MINUTES = 1;
+export const MAX_ISSUE_AUTO_DEV_INTERVAL_MINUTES = 1440;
+export const IssueAutoDevSettings = Schema.Struct({
+  enabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  intervalMinutes: Schema.Int.check(
+    Schema.isBetween({
+      minimum: MIN_ISSUE_AUTO_DEV_INTERVAL_MINUTES,
+      maximum: MAX_ISSUE_AUTO_DEV_INTERVAL_MINUTES,
+    }),
+  ).pipe(Schema.withDecodingDefault(Effect.succeed(5))),
+});
+export type IssueAutoDevSettings = typeof IssueAutoDevSettings.Type;
+
 const CloudSpeechCredential = SettingsSecretValue.pipe(
   Schema.withDecodingDefault(Effect.succeed("")),
 );
@@ -1357,6 +1417,18 @@ export const ServerSettings = Schema.Struct({
   ),
 
   enableAgentBrowserAccess: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  ones: OnesSettings.pipe(
+    Schema.withDecodingDefault(Effect.succeed(Schema.decodeSync(OnesSettings)({}))),
+  ),
+  issueRepoCredentials: IssueRepoCredentials.pipe(
+    Schema.withDecodingDefault(Effect.succeed(Schema.decodeSync(IssueRepoCredentials)({}))),
+  ),
+  issueProjectBindings: Schema.Array(IssueProjectBinding).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
+  ),
+  issueAutoDev: IssueAutoDevSettings.pipe(
+    Schema.withDecodingDefault(Effect.succeed(Schema.decodeSync(IssueAutoDevSettings)({}))),
+  ),
   cloudSpeechCredentials: CloudSpeechCredentials.pipe(
     Schema.withDecodingDefault(Effect.succeed({ openai: "", xai: "", openrouter: "" })),
   ),
@@ -1803,6 +1875,27 @@ export const ServerSettingsPatch = Schema.Struct({
   enableProviderUpdateChecks: Schema.optionalKey(Schema.Boolean),
   continueThreadsAfterServerUpdate: Schema.optionalKey(Schema.Boolean),
   enableAgentBrowserAccess: Schema.optionalKey(Schema.Boolean),
+  ones: Schema.optionalKey(
+    Schema.Struct({
+      baseUrl: Schema.optionalKey(TrimmedString),
+      teamUuid: Schema.optionalKey(TrimmedString),
+      email: Schema.optionalKey(TrimmedString),
+      password: Schema.optionalKey(SettingsSecretValue),
+    }),
+  ),
+  issueRepoCredentials: Schema.optionalKey(
+    Schema.Struct({
+      username: Schema.optionalKey(TrimmedString),
+      token: Schema.optionalKey(SettingsSecretValue),
+    }),
+  ),
+  issueProjectBindings: Schema.optionalKey(Schema.Array(IssueProjectBinding)),
+  issueAutoDev: Schema.optionalKey(
+    Schema.Struct({
+      enabled: Schema.optionalKey(Schema.Boolean),
+      intervalMinutes: Schema.optionalKey(IssueAutoDevSettings.fields.intervalMinutes),
+    }),
+  ),
   cloudSpeechCredentials: Schema.optionalKey(
     Schema.Struct({
       openai: Schema.optionalKey(SettingsSecretValue),
@@ -2009,6 +2102,8 @@ export const ClientSettingsPatch = Schema.Struct({
   fontSizePrompt: Schema.optionalKey(PromptFontSize),
   fontSizeCode: Schema.optionalKey(CodeFontSize),
   fontSizeTerminal: Schema.optionalKey(TerminalFontSize),
+  windowBackgroundImage: Schema.optionalKey(Schema.String),
+  windowBackgroundOpacity: Schema.optionalKey(WindowBackgroundOpacity),
   fontFamilyCode: Schema.optionalKey(FontFamilyPreference),
   fontFamilyComposer: Schema.optionalKey(FontFamilyPreference),
   fontFamilySans: Schema.optionalKey(FontFamilyPreference),

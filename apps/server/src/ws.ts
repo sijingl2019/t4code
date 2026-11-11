@@ -222,6 +222,7 @@ import * as ManagedProjectFolders from "./project/ManagedProjectFolders.ts";
 import * as ScratchThreadPromotion from "./project/ScratchThreadPromotion.ts";
 import { mutateProjectWithClone } from "./project/ProjectMutation.ts";
 import * as ProjectCloneTracker from "./project/ProjectCloneTracker.ts";
+import * as IssueService from "./issues/IssueService.ts";
 import * as RepositoryIdentityResolver from "./project/RepositoryIdentityResolver.ts";
 import * as WorktreeSetupTracker from "./project/WorktreeSetupTracker.ts";
 import * as ServerEnvironment from "./environment/ServerEnvironment.ts";
@@ -1479,6 +1480,7 @@ export const layerWsRpc = (
       const usageLimitSources = yield* UsageLimitSources.UsageLimitSources;
       const worktreeSetupTracker = yield* WorktreeSetupTracker.WorktreeSetupTracker;
       const projectCloneTracker = yield* ProjectCloneTracker.ProjectCloneTracker;
+      const issueService = yield* IssueService.IssueService;
       const repositoryIdentityResolver =
         yield* RepositoryIdentityResolver.RepositoryIdentityResolver;
       const projectEnrichment = yield* ProjectEnrichmentService.ProjectEnrichmentService;
@@ -1997,6 +1999,43 @@ export const layerWsRpc = (
         vcsStatusBroadcaster
           .refreshStatus(cwd)
           .pipe(Effect.ignoreCause({ log: true }), Effect.forkDetach, Effect.asVoid);
+
+      const projectCloneHooks: ProjectCloneTracker.ProjectCloneHooks = {
+      createProject: (project) =>
+        projectService
+          .create({
+            commandId: CommandId.make(`project-clone-create:${project.projectId}`),
+            projectId: project.projectId,
+            title: project.title,
+            workspaceRoot: project.workspaceRoot,
+            createWorkspaceRootIfMissing: true,
+          })
+          .pipe(
+            Effect.asVoid,
+            Effect.mapError(
+              (cause) =>
+                new OrchestrationDispatchCommandError({
+                  message: "Failed to create clone project.",
+                  cause,
+                }),
+            ),
+          ),
+      onCloned: (project) =>
+        repositoryIdentityResolver.resolve(project.workspaceRoot, { refresh: true }).pipe(
+          Effect.andThen(
+            projectService.update({
+              commandId: CommandId.make(`project-clone-done:${project.projectId}`),
+              projectId: project.projectId,
+            }),
+          ),
+          Effect.andThen(refreshGitStatus(project.workspaceRoot)),
+          // The folder was empty when the project was created, so the cached
+          // enrichment says "no repository" and clients cannot group it yet.
+          Effect.andThen(projectEnrichment.invalidate([project.workspaceRoot])),
+          Effect.andThen(projectEnrichment.request(project.workspaceRoot)),
+          Effect.ignoreCause({ log: true }),
+        ),
+    };
 
       const getOrchestrationV2ArchivedShellSnapshot = Effect.gen(function* () {
         const { threads, projects, snapshotSequence } = yield* loadShellSnapshotParts({
@@ -2884,42 +2923,12 @@ export const layerWsRpc = (
         [WS_METHODS.sourceControlStarred]: (input) => sourceControlSignIn.starred(input),
         [WS_METHODS.sourceControlStar]: (input) => sourceControlSignIn.star(input),
         [WS_METHODS.projectCloneStart]: (input) =>
-          projectCloneTracker.start(input, {
-            createProject: (project) =>
-              projectService
-                .create({
-                  commandId: CommandId.make(`project-clone-create:${project.projectId}`),
-                  projectId: project.projectId,
-                  title: project.title,
-                  workspaceRoot: project.workspaceRoot,
-                  createWorkspaceRootIfMissing: true,
-                })
-                .pipe(
-                  Effect.asVoid,
-                  Effect.mapError(
-                    (cause) =>
-                      new OrchestrationDispatchCommandError({
-                        message: "Failed to create clone project.",
-                        cause,
-                      }),
-                  ),
-                ),
-            onCloned: (project) =>
-              repositoryIdentityResolver.resolve(project.workspaceRoot, { refresh: true }).pipe(
-                Effect.andThen(
-                  projectService.update({
-                    commandId: CommandId.make(`project-clone-done:${project.projectId}`),
-                    projectId: project.projectId,
-                  }),
-                ),
-                Effect.andThen(refreshGitStatus(project.workspaceRoot)),
-                // The folder was empty when the project was created, so the cached
-                // enrichment says "no repository" and clients cannot group it yet.
-                Effect.andThen(projectEnrichment.invalidate([project.workspaceRoot])),
-                Effect.andThen(projectEnrichment.request(project.workspaceRoot)),
-                Effect.ignoreCause({ log: true }),
-              ),
-          }),
+          projectCloneTracker.start(input, projectCloneHooks),
+        [WS_METHODS.issuesList]: (input) => issueService.list(input.projectId),
+        [WS_METHODS.issuesGet]: (input) => issueService.get(input.issueUuid),
+        [WS_METHODS.issuesTestConnection]: () => issueService.testConnection,
+        [WS_METHODS.issuesSyncBindings]: () =>
+          issueService.syncBindings((input) => projectCloneTracker.start(input, projectCloneHooks)),
         [WS_METHODS.projectsEnsureScratch]: () =>
           managedFolders.ensureScratchProject.pipe(
             Effect.mapError(

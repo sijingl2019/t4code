@@ -332,6 +332,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["transparent transparency solid menus dialogs composer"],
   },
   {
+    id: "window-background",
+    title: "Window background image",
+    to: "/settings/appearance",
+    searchTerms: ["wallpaper background picture image opacity transparency"],
+  },
+  {
     id: "diff-color-scheme",
     title: "Diff colors",
     to: "/settings/diffs",

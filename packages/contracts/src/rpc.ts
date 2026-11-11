@@ -385,6 +385,15 @@ import {
 } from "./scheduledTask.ts";
 import { SecretRequestAnswerInput, SecretRequestError } from "./secretRequest.ts";
 import {
+  IssueGetInput,
+  IssueGetResult,
+  IssueListInput,
+  Issue,
+  IssueSyncBindingsResult,
+  IssueTestConnectionResult,
+  IssueTrackerError,
+} from "./issues.ts";
+import {
   ProjectCloneActionInput,
   ProjectCloneActionResult,
   ProjectCloneListEvent,
@@ -606,6 +615,10 @@ export const WS_METHODS = {
   sourceControlAppAccess: "sourceControl.appAccess",
   sourceControlStarred: "sourceControl.starred",
   sourceControlStar: "sourceControl.star",
+  issuesList: "issues.list",
+  issuesGet: "issues.get",
+  issuesTestConnection: "issues.testConnection",
+  issuesSyncBindings: "issues.syncBindings",
   projectCloneStart: "projectClone.start",
   projectCloneCancel: "projectClone.cancel",
   projectCloneRetry: "projectClone.retry",
@@ -1294,6 +1307,30 @@ const WsSourceControlStarredRpc = Rpc.make(WS_METHODS.sourceControlStarred, {
 const WsSourceControlStarRpc = Rpc.make(WS_METHODS.sourceControlStar, {
   payload: SourceControlStarredInput,
   success: Schema.Boolean,
+  error: EnvironmentAuthorizationError,
+});
+
+const WsIssuesListRpc = Rpc.make(WS_METHODS.issuesList, {
+  payload: IssueListInput,
+  success: Schema.Array(Issue),
+  error: Schema.Union([IssueTrackerError, EnvironmentAuthorizationError]),
+});
+
+const WsIssuesGetRpc = Rpc.make(WS_METHODS.issuesGet, {
+  payload: IssueGetInput,
+  success: IssueGetResult,
+  error: Schema.Union([IssueTrackerError, EnvironmentAuthorizationError]),
+});
+
+const WsIssuesTestConnectionRpc = Rpc.make(WS_METHODS.issuesTestConnection, {
+  payload: Schema.Struct({}),
+  success: IssueTestConnectionResult,
+  error: EnvironmentAuthorizationError,
+});
+
+const WsIssuesSyncBindingsRpc = Rpc.make(WS_METHODS.issuesSyncBindings, {
+  payload: Schema.Struct({}),
+  success: IssueSyncBindingsResult,
   error: EnvironmentAuthorizationError,
 });
 
@@ -2179,6 +2216,10 @@ export const WsRpcGroup = RpcGroup.make(
   WsSourceControlAppAccessRpc,
   WsSourceControlStarredRpc,
   WsSourceControlStarRpc,
+  WsIssuesListRpc,
+  WsIssuesGetRpc,
+  WsIssuesTestConnectionRpc,
+  WsIssuesSyncBindingsRpc,
   WsProjectCloneStartRpc,
   WsProjectCloneCancelRpc,
   WsProjectCloneRetryRpc,
