@@ -1,3 +1,4 @@
+// @effect-diagnostics extendsNativeError:off globalDate:off - plain Promise client wrapped by IssueService.
 /**
  * ONES (private deployment) client. Endpoints and fields were verified against a real server;
  * see docs/ones-api-notes.md in the kika project before changing them.
@@ -45,10 +46,12 @@ export class OnesClient {
   private filtered = true;
   private loginPromise: Promise<void> | null = null;
 
-  constructor(
-    private readonly connection: OnesConnection,
-    private readonly fetchImpl: typeof fetch = fetch,
-  ) {
+  private readonly connection: OnesConnection;
+  private readonly fetchImpl: typeof fetch;
+
+  constructor(connection: OnesConnection, fetchImpl: typeof fetch = fetch) {
+    this.connection = connection;
+    this.fetchImpl = fetchImpl;
     this.team = connection.teamUuid;
   }
 

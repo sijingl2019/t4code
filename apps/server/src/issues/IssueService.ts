@@ -27,7 +27,10 @@ import {
   type ServerSettings,
 } from "@t3tools/contracts";
 import * as HostProcess from "@t3tools/shared/HostProcess";
+import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
+import * as SecureRandom from "effect/crypto/SecureRandom";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -54,7 +57,7 @@ export class IssueService extends Context.Service<
       startClone: (input: ProjectCloneStartInput) => Effect.Effect<unknown, E>,
     ) => Effect.Effect<IssueSyncBindingsResult>;
   }
->()("t4/issues/IssueService") {}
+>()("t3/issues/IssueService") {}
 
 const errorMessage = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);
@@ -154,6 +157,7 @@ export const layer = Layer.effect(
     const threadLaunch = yield* ThreadLaunchService.ThreadLaunchService;
     const scheduler = yield* Scheduler.Scheduler;
     const platform = yield* HostProcess.Platform;
+    const random = yield* SecureRandom.SecureRandom;
 
     // One client per connection so its login token is reused.
     let client: { key: string; value: OnesClient } | null = null;
@@ -171,20 +175,20 @@ export const layer = Layer.effect(
       return client.value;
     };
 
-    const listAll = (settings: ServerSettings, fresh = false) =>
-      Effect.tryPromise({
-        try: async () => {
-          const ones = clientFor(settings);
-          const key = client!.key;
-          if (!fresh && listCache?.key === key && Date.now() - listCache.at < LIST_CACHE_MS) {
-            return listCache.issues;
-          }
-          const issues = await ones.listMyOpenIssues();
-          listCache = { key, at: Date.now(), issues };
-          return issues;
-        },
-        catch: fail,
-      });
+    const listAll = Effect.fn("IssueService.listAll")(function* (
+      settings: ServerSettings,
+      fresh = false,
+    ) {
+      const ones = clientFor(settings);
+      const key = client!.key;
+      const now = yield* Clock.currentTimeMillis;
+      if (!fresh && listCache?.key === key && now - listCache.at < LIST_CACHE_MS) {
+        return listCache.issues;
+      }
+      const issues = yield* Effect.tryPromise({ try: () => ones.listMyOpenIssues(), catch: fail });
+      listCache = { key, at: now, issues };
+      return issues;
+    });
 
     const bindingsFor = (settings: ServerSettings, project: Project) => {
       const root = normalizeLocalPath(project.workspaceRoot, platform);
@@ -221,9 +225,10 @@ export const layer = Layer.effect(
         const files: IssueFile[] = [];
         const skipped: string[] = [];
         for (const attachment of issue.attachments) {
-          const downloaded = yield* Effect.tryPromise(() => ones.download(attachment.url)).pipe(
-            Effect.option,
-          );
+          const downloaded = yield* Effect.tryPromise({
+            try: () => ones.download(attachment.url),
+            catch: fail,
+          }).pipe(Effect.option);
           if (
             Option.isNone(downloaded) ||
             downloaded.value.bytes.byteLength > MAX_INLINE_FILE_BYTES
@@ -264,7 +269,7 @@ export const layer = Layer.effect(
       const existing = yield* projects.getByWorkspaceRoot(localPath).pipe(Effect.mapError(fail));
       if (Option.isSome(existing)) return { outcome: "linked" as const, message: "已在项目列表中" };
       const title = NodePath.basename(localPath);
-      const projectId = ProjectId.make(crypto.randomUUID());
+      const projectId = ProjectId.make(yield* random.uuidV4().pipe(Effect.mapError(fail)));
       if (yield* Effect.promise(() => pathExists(localPath))) {
         yield* projects
           .bootstrap({
@@ -291,7 +296,7 @@ export const layer = Layer.effect(
       yield* startClone({
         projectId,
         title,
-        createdAt: new Date().toISOString(),
+        createdAt: DateTime.formatIso(yield* DateTime.now),
         remoteUrl: binding.repoUrl,
         destinationPath: localPath,
       });
@@ -383,8 +388,9 @@ export const layer = Layer.effect(
       const settings = yield* readSettings;
       const { enabled, intervalMinutes } = settings.issueAutoDev;
       if (!enabled || settings.issueProjectBindings.length === 0) return;
-      if (Date.now() - lastPollAt < intervalMinutes * 60_000) return;
-      lastPollAt = Date.now();
+      const now = yield* Clock.currentTimeMillis;
+      if (now - lastPollAt < intervalMinutes * 60_000) return;
+      lastPollAt = now;
       const seen = new Set<string>();
       for (const binding of settings.issueProjectBindings) {
         const project = yield* projects
