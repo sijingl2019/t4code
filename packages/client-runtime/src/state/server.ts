@@ -1689,13 +1689,9 @@ export function createServerEnvironmentAtoms<R, E>(
       label: "environment-data:issues:test-connection",
       tag: WS_METHODS.issuesTestConnection,
     }),
-    syncIssueBindings: createEnvironmentRpcCommand(runtime, {
-      label: "environment-data:issues:sync-bindings",
-      tag: WS_METHODS.issuesSyncBindings,
-      concurrency: {
-        mode: "singleFlight",
-        key: ({ environmentId }) => environmentId,
-      },
+    getIssueTrackerCatalog: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:issues:catalog",
+      tag: WS_METHODS.issuesCatalog,
     }),
     getMemoryStats: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:memory:get-stats",

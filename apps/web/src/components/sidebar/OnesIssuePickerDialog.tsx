@@ -1,4 +1,5 @@
 import { scopeProjectRef } from "@t3tools/client-runtime/environment";
+import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
 import type { EnvironmentId, Issue, ProjectId } from "@t3tools/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import { useEffect, useState } from "react";
@@ -32,17 +33,29 @@ export function OnesIssuePickerDialog(props: {
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    setIssues(null);
-    setError(null);
     void listIssues({ environmentId, input: { projectId } }).then((result) => {
       if (cancelled) return;
       if (result._tag === "Success") setIssues(result.value);
-      else setError("Could not load ONES issues. Check Settings → Source control → ONES issues.");
+      else {
+        const cause = squashAtomCommandFailure(result);
+        setError(
+          `Could not load ONES issues: ${cause instanceof Error ? cause.message : String(cause)}`,
+        );
+      }
     });
     return () => {
       cancelled = true;
     };
   }, [open, environmentId, projectId, listIssues]);
+
+  // Closing clears the list so the next open shows "Loading…" instead of stale issues.
+  const handleOpenChange = (next: boolean) => {
+    if (!next) {
+      setIssues(null);
+      setError(null);
+    }
+    onOpenChange(next);
+  };
 
   const pick = async (issue: Issue) => {
     setLoadingUuid(issue.uuid);
@@ -53,14 +66,12 @@ export function OnesIssuePickerDialog(props: {
       prompt: result.value.prompt,
     });
     if (created && result.value.files.length > 0) {
-      usePendingIssueFiles
-        .getState()
-        .put(
-          created.threadId,
-          result.value.files.map((file) => base64ToFile(file.name, file.mimeType, file.dataBase64)),
-        );
+      usePendingIssueFiles.getState().put(
+        created.threadId,
+        result.value.files.map((file) => base64ToFile(file.name, file.mimeType, file.dataBase64)),
+      );
     }
-    onOpenChange(false);
+    handleOpenChange(false);
   };
 
   const needle = filter.trim().toLowerCase();
@@ -72,7 +83,7 @@ export function OnesIssuePickerDialog(props: {
   );
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogPopup>
         <DialogHeader>
           <DialogTitle>ONES issues · {props.projectName}</DialogTitle>
@@ -97,7 +108,7 @@ export function OnesIssuePickerDialog(props: {
             ) : null}
             <ul className="grid max-h-96 gap-1 overflow-y-auto">
               {visible.map((issue) => (
-                <li key={issue.uuid}>
+                <li key={issue.uuid} className="grid">
                   <Button
                     variant="ghost"
                     size="multiline"

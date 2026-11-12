@@ -3,16 +3,21 @@ import {
   MAX_ISSUE_AUTO_DEV_INTERVAL_MINUTES,
   MIN_ISSUE_AUTO_DEV_INTERVAL_MINUTES,
   type IssueProjectBinding,
-  type IssueSyncBindingsResult,
+  type IssueStatusFilter,
+  type IssueTrackerStatus,
 } from "@t3tools/contracts";
-import { PlusIcon, Trash2Icon } from "lucide-react";
+import { ChevronDownIcon, RefreshCwIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
+import { useIssueTrackerCatalog } from "../../issues/useIssueTrackerCatalog";
+import { useProjects } from "../../state/entities";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
+import { Menu, MenuCheckboxItem, MenuPopup, MenuTrigger } from "../ui/menu";
+import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Switch } from "../ui/switch";
 import { useSettingsScope } from "./SettingsScopeContext";
 import { SettingsScopeNotice } from "./SettingsScopeNotice";
@@ -40,24 +45,25 @@ type Draft = {
   teamUuid: string;
   email: string;
   password: string;
-  repoUsername: string;
-  repoToken: string;
-  bindings: IssueProjectBinding[];
   autoDevEnabled: boolean;
   autoDevIntervalMinutes: number;
 };
 
 function OnesIssueForm() {
   const { environment } = useSettingsScope();
-  const environmentId = environment?.environmentId;
+  const environmentId = environment?.environmentId ?? null;
   const ones = useScopedSettings((settings) => settings.ones);
-  const repo = useScopedSettings((settings) => settings.issueRepoCredentials);
   const savedBindings = useScopedSettings((settings) => settings.issueProjectBindings);
   const autoDev = useScopedSettings((settings) => settings.issueAutoDev);
-  const canEdit = useAtomValue(serverEnvironment.updateSettings.permissionAtom(environmentId ?? null));
+  const canEdit = useAtomValue(serverEnvironment.updateSettings.permissionAtom(environmentId));
   const updateSettings = useAtomCommand(serverEnvironment.updateSettings, { reportFailure: true });
   const testConnection = useAtomCommand(serverEnvironment.testIssueConnection);
-  const syncBindings = useAtomCommand(serverEnvironment.syncIssueBindings, { reportFailure: true });
+  const configured = ones.baseUrl !== "" && ones.email !== "";
+  const tracker = useIssueTrackerCatalog(environmentId, configured);
+  const localProjects = useProjects().filter(
+    (project) =>
+      project.environmentId === environmentId && !project.isScratch && !project.archivedAt,
+  );
 
   // Secrets come back redacted; an empty draft secret means "keep the saved one".
   const initial = (): Draft => ({
@@ -65,39 +71,37 @@ function OnesIssueForm() {
     teamUuid: ones.teamUuid,
     email: ones.email,
     password: "",
-    repoUsername: repo.username,
-    repoToken: "",
-    bindings: [...savedBindings],
     autoDevEnabled: autoDev.enabled,
     autoDevIntervalMinutes: autoDev.intervalMinutes,
   });
   const [draft, setDraft] = useState<Draft>(initial);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [syncResult, setSyncResult] = useState<IssueSyncBindingsResult | null>(null);
   const set = (patch: Partial<Draft>) => {
     setDraft((previous) => ({ ...previous, ...patch }));
     setMessage(null);
   };
-  const setBinding = (index: number, patch: Partial<IssueProjectBinding>) =>
-    set({
-      bindings: draft.bindings.map((binding, i) => (i === index ? { ...binding, ...patch } : binding)),
-    });
+  // Bindings save on toggle; the Save button covers the connection fields.
+  const toggleBinding = async (onesProjectUuid: string, localPath: string, bound: boolean) => {
+    if (!environmentId) return;
+    const bindings: IssueProjectBinding[] = bound
+      ? [...savedBindings, { onesProjectUuid, localPath }]
+      : savedBindings.filter(
+          (b) => !(b.onesProjectUuid === onesProjectUuid && b.localPath === localPath),
+        );
+    await updateSettings({ environmentId, input: { patch: { issueProjectBindings: bindings } } });
+  };
+  const saveStatusFilter = (statusFilter: IssueStatusFilter) => {
+    if (!environmentId) return;
+    void updateSettings({ environmentId, input: { patch: { ones: { statusFilter } } } });
+  };
   const passwordSaved = typeof ones.password !== "string" || ones.password !== "";
-  const tokenSaved = typeof repo.token !== "string" || repo.token !== "";
   const disabled = busy || !canEdit;
 
   const save = async () => {
     if (!environmentId) return;
     setBusy(true);
     setMessage(null);
-    const bindings = draft.bindings
-      .map((binding) => ({
-        onesProjectUuid: binding.onesProjectUuid.trim(),
-        localPath: binding.localPath.trim(),
-        repoUrl: binding.repoUrl.trim(),
-      }))
-      .filter((binding) => binding.onesProjectUuid !== "" && binding.localPath !== "");
     const result = await updateSettings({
       environmentId,
       input: {
@@ -108,11 +112,6 @@ function OnesIssueForm() {
             email: draft.email.trim(),
             ...(draft.password === "" ? {} : { password: draft.password }),
           },
-          issueRepoCredentials: {
-            username: draft.repoUsername.trim(),
-            ...(draft.repoToken === "" ? {} : { token: draft.repoToken }),
-          },
-          issueProjectBindings: bindings,
           issueAutoDev: {
             enabled: draft.autoDevEnabled,
             intervalMinutes: draft.autoDevIntervalMinutes,
@@ -121,11 +120,9 @@ function OnesIssueForm() {
       },
     });
     if (result._tag === "Success") {
-      setDraft((previous) => ({ ...previous, password: "", repoToken: "", bindings }));
-      // Saving is when new bindings take effect: link or clone their checkouts now.
-      const synced = await syncBindings({ environmentId, input: {} });
-      if (synced._tag === "Success") setSyncResult(synced.value);
+      setDraft((previous) => ({ ...previous, password: "" }));
       setMessage("Saved.");
+      void tracker.reload();
     }
     setBusy(false);
   };
@@ -140,14 +137,15 @@ function OnesIssueForm() {
         ? `${result.value.ok ? "Connected" : "Failed"}: ${result.value.message}`
         : "Connection test failed.",
     );
+    if (result._tag === "Success" && result.value.ok) void tracker.reload();
   };
 
   return (
     <SettingsSection title={SECTION_TITLE} id="ones-issues">
       <div className="grid gap-4 px-4 py-4 sm:px-5">
         <p className="text-xs text-muted-foreground">
-          Connect a private ONES deployment, bind ONES projects to local checkouts, and pick issues
-          when starting a thread. Save and test the connection before binding projects.
+          Connect a private ONES deployment, bind ONES projects to T4 projects, and pick issues when
+          starting a thread.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="ONES URL">
@@ -188,95 +186,6 @@ function OnesIssueForm() {
               onChange={(event) => set({ password: event.target.value })}
             />
           </Field>
-          <Field label="Repository username (Bitbucket)">
-            <Input
-              size="sm"
-              value={draft.repoUsername}
-              disabled={disabled}
-              onChange={(event) => set({ repoUsername: event.target.value })}
-            />
-          </Field>
-          <Field label="Repository access token">
-            <Input
-              size="sm"
-              type="password"
-              placeholder={tokenSaved ? "Saved (leave empty to keep)" : ""}
-              value={draft.repoToken}
-              disabled={disabled}
-              onChange={(event) => set({ repoToken: event.target.value })}
-            />
-          </Field>
-        </div>
-
-        <div className="grid gap-2">
-          <div className="flex items-center justify-between gap-3">
-            <Label>Project bindings</Label>
-            <Button
-              type="button"
-              size="xs"
-              variant="outline"
-              disabled={disabled}
-              onClick={() =>
-                set({
-                  bindings: [...draft.bindings, { onesProjectUuid: "", localPath: "", repoUrl: "" }],
-                })
-              }
-            >
-              <PlusIcon />
-              Add binding
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            The ONES project UUID is in the project URL (…/project/&lt;uuid&gt;). A missing local
-            directory is cloned from the repository URL and added to the project list.
-          </p>
-          {draft.bindings.map((binding, index) => (
-            <div key={index} className="grid items-center gap-2 sm:grid-cols-[1fr_1.4fr_1.4fr_auto]">
-              <Input
-                size="sm"
-                aria-label="ONES project UUID"
-                placeholder="ONES project UUID"
-                value={binding.onesProjectUuid}
-                disabled={disabled}
-                onChange={(event) => setBinding(index, { onesProjectUuid: event.target.value })}
-              />
-              <Input
-                size="sm"
-                aria-label="Local directory"
-                placeholder="Local directory, e.g. E:\\code\\app"
-                value={binding.localPath}
-                disabled={disabled}
-                onChange={(event) => setBinding(index, { localPath: event.target.value })}
-              />
-              <Input
-                size="sm"
-                aria-label="Repository URL"
-                placeholder="Repository URL (when the directory is missing)"
-                value={binding.repoUrl}
-                disabled={disabled}
-                onChange={(event) => setBinding(index, { repoUrl: event.target.value })}
-              />
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                aria-label="Remove binding"
-                disabled={disabled}
-                onClick={() => set({ bindings: draft.bindings.filter((_, i) => i !== index) })}
-              >
-                <Trash2Icon />
-              </Button>
-            </div>
-          ))}
-          {syncResult && syncResult.length > 0 ? (
-            <ul className="grid gap-0.5 text-xs text-muted-foreground">
-              {syncResult.map((entry) => (
-                <li key={entry.localPath}>
-                  {entry.localPath}: {entry.message}
-                </li>
-              ))}
-            </ul>
-          ) : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -289,25 +198,25 @@ function OnesIssueForm() {
           <span className="text-sm">Auto development</span>
           <span className="text-xs text-muted-foreground">every</span>
           <div className="w-20">
-          <Input
-            size="sm"
-            type="number"
-            min={MIN_ISSUE_AUTO_DEV_INTERVAL_MINUTES}
-            max={MAX_ISSUE_AUTO_DEV_INTERVAL_MINUTES}
-            value={draft.autoDevIntervalMinutes}
-            disabled={disabled}
-            aria-label="Poll interval in minutes"
-            onChange={(event) => {
-              const value = Number(event.target.value);
-              if (
-                Number.isInteger(value) &&
-                value >= MIN_ISSUE_AUTO_DEV_INTERVAL_MINUTES &&
-                value <= MAX_ISSUE_AUTO_DEV_INTERVAL_MINUTES
-              ) {
-                set({ autoDevIntervalMinutes: value });
-              }
-            }}
-          />
+            <Input
+              size="sm"
+              type="number"
+              min={MIN_ISSUE_AUTO_DEV_INTERVAL_MINUTES}
+              max={MAX_ISSUE_AUTO_DEV_INTERVAL_MINUTES}
+              value={draft.autoDevIntervalMinutes}
+              disabled={disabled}
+              aria-label="Poll interval in minutes"
+              onChange={(event) => {
+                const value = Number(event.target.value);
+                if (
+                  Number.isInteger(value) &&
+                  value >= MIN_ISSUE_AUTO_DEV_INTERVAL_MINUTES &&
+                  value <= MAX_ISSUE_AUTO_DEV_INTERVAL_MINUTES
+                ) {
+                  set({ autoDevIntervalMinutes: value });
+                }
+              }}
+            />
           </div>
           <span className="text-xs text-muted-foreground">minutes</span>
         </div>
@@ -329,6 +238,92 @@ function OnesIssueForm() {
             </Button>
           </div>
         </div>
+
+        {configured ? (
+          <div className="grid gap-2 border-t pt-4">
+            <div className="flex items-center justify-between gap-3">
+              <Label>ONES projects</Label>
+              <Button
+                type="button"
+                size="icon-xs"
+                variant="ghost"
+                aria-label="Reload ONES projects"
+                onClick={() => void tracker.reload()}
+              >
+                <RefreshCwIcon />
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Choose the T4 projects each ONES project's issues belong to. One ONES project can feed
+              several T4 projects.
+            </p>
+            {tracker.error ? (
+              <p className="text-xs text-destructive">{tracker.error}</p>
+            ) : tracker.catalog === null ? (
+              <p className="text-xs text-muted-foreground">Loading…</p>
+            ) : tracker.catalog.projects.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No ONES projects visible.</p>
+            ) : (
+              <ul className="grid divide-y rounded-md border">
+                {tracker.catalog.projects.map((onesProject) => {
+                  const bound = new Set(
+                    savedBindings
+                      .filter((b) => b.onesProjectUuid === onesProject.id)
+                      .map((b) => b.localPath),
+                  );
+                  const boundTitles = localProjects
+                    .filter((project) => bound.has(project.workspaceRoot))
+                    .map((project) => project.title);
+                  return (
+                    <li key={onesProject.id} className="flex items-center gap-3 px-3 py-2">
+                      <span className="min-w-0 flex-1 truncate text-sm">{onesProject.name}</span>
+                      <Menu>
+                        <MenuTrigger
+                          disabled={disabled}
+                          render={<Button type="button" size="xs" variant="outline" />}
+                        >
+                          <span className="max-w-56 truncate">
+                            {boundTitles.length > 0 ? boundTitles.join(", ") : "Select projects"}
+                          </span>
+                          <ChevronDownIcon />
+                        </MenuTrigger>
+                        <MenuPopup align="end">
+                          {localProjects.length === 0 ? (
+                            <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                              No projects in this environment.
+                            </p>
+                          ) : (
+                            localProjects.map((project) => (
+                              <MenuCheckboxItem
+                                key={project.id}
+                                checked={bound.has(project.workspaceRoot)}
+                                closeOnClick={false}
+                                onCheckedChange={(checked) =>
+                                  void toggleBinding(onesProject.id, project.workspaceRoot, checked)
+                                }
+                              >
+                                {project.title}
+                              </MenuCheckboxItem>
+                            ))
+                          )}
+                        </MenuPopup>
+                      </Menu>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        ) : null}
+
+        {configured && tracker.catalog ? (
+          <StatusFilterField
+            value={ones.statusFilter}
+            statuses={tracker.catalog.statuses}
+            disabled={disabled}
+            onChange={saveStatusFilter}
+          />
+        ) : null}
       </div>
     </SettingsSection>
   );
@@ -340,5 +335,86 @@ function Field(props: { label: string; children: ReactNode }) {
       <span className="text-xs font-medium text-foreground">{props.label}</span>
       {props.children}
     </label>
+  );
+}
+
+const STATUS_FILTER_MODES: Record<IssueStatusFilter["mode"], string> = {
+  default: "Default (hide done issues)",
+  include: "Only these statuses",
+  exclude: "All except these statuses",
+};
+
+function StatusFilterField(props: {
+  value: IssueStatusFilter;
+  statuses: ReadonlyArray<IssueTrackerStatus>;
+  disabled: boolean;
+  onChange: (value: IssueStatusFilter) => void;
+}) {
+  const { value, statuses } = props;
+  const picked = new Set(value.statusIds);
+  const pickedNames = statuses.filter((s) => picked.has(s.id)).map((s) => s.name);
+  return (
+    <div className="grid gap-2 border-t pt-4">
+      <Label>Issue statuses</Label>
+      <p className="text-xs text-muted-foreground">
+        Which of your assigned issues the picker and auto development see. Pick either statuses to
+        show or statuses to hide; with none picked the default applies.
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <Select
+          disabled={props.disabled}
+          value={value.mode}
+          onValueChange={(mode) => {
+            // Switching mode clears the list: the same ids would mean the opposite.
+            if (mode && mode !== value.mode) props.onChange({ mode, statusIds: [] });
+          }}
+        >
+          <SelectTrigger size="sm" aria-label="Status filter mode">
+            <SelectValue>
+              {(mode: IssueStatusFilter["mode"]) => STATUS_FILTER_MODES[mode]}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectPopup>
+            {(Object.keys(STATUS_FILTER_MODES) as IssueStatusFilter["mode"][]).map((mode) => (
+              <SelectItem key={mode} value={mode}>
+                {STATUS_FILTER_MODES[mode]}
+              </SelectItem>
+            ))}
+          </SelectPopup>
+        </Select>
+        {value.mode === "default" ? null : (
+          <Menu>
+            <MenuTrigger
+              disabled={props.disabled}
+              render={<Button type="button" size="xs" variant="outline" />}
+            >
+              <span className="max-w-72 truncate">
+                {pickedNames.length > 0 ? pickedNames.join(", ") : "Select statuses"}
+              </span>
+              <ChevronDownIcon />
+            </MenuTrigger>
+            <MenuPopup align="start">
+              {statuses.map((status) => (
+                <MenuCheckboxItem
+                  key={status.id}
+                  checked={picked.has(status.id)}
+                  closeOnClick={false}
+                  onCheckedChange={(checked) =>
+                    props.onChange({
+                      mode: value.mode,
+                      statusIds: checked
+                        ? [...value.statusIds, status.id]
+                        : value.statusIds.filter((id) => id !== status.id),
+                    })
+                  }
+                >
+                  {status.name}
+                </MenuCheckboxItem>
+              ))}
+            </MenuPopup>
+          </Menu>
+        )}
+      </div>
+    </div>
   );
 }

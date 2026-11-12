@@ -29,7 +29,8 @@ export const Issue = Schema.Struct({
   descriptionText: Schema.String,
   status: Schema.String,
   url: Schema.String,
-  onesProjectUuid: Schema.String,
+  /** Id of the tracker project the issue belongs to. */
+  trackerProjectId: Schema.String,
   updatedAt: Schema.String,
   comments: Schema.Array(IssueComment),
   attachments: Schema.Array(IssueAttachmentRef),
@@ -64,23 +65,27 @@ export const IssueTestConnectionResult = Schema.Struct({
 });
 export type IssueTestConnectionResult = typeof IssueTestConnectionResult.Type;
 
-export const IssueBindingSyncOutcome = Schema.Literals([
-  "linked",
-  "created",
-  "cloning",
-  "skipped",
-  "failed",
-]);
-export type IssueBindingSyncOutcome = typeof IssueBindingSyncOutcome.Type;
+/** A project in the issue tracker (e.g. an ONES project), not a T4 project. */
+export const IssueTrackerProject = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+});
+export type IssueTrackerProject = typeof IssueTrackerProject.Type;
 
-export const IssueSyncBindingsResult = Schema.Array(
-  Schema.Struct({
-    localPath: Schema.String,
-    outcome: IssueBindingSyncOutcome,
-    message: Schema.String,
-  }),
-);
-export type IssueSyncBindingsResult = typeof IssueSyncBindingsResult.Type;
+export const IssueTrackerStatus = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  /** Tracker's own grouping, e.g. ONES `to_do` / `in_progress` / `done`. */
+  category: Schema.String,
+});
+export type IssueTrackerStatus = typeof IssueTrackerStatus.Type;
+
+/** What the settings UI needs to bind projects and pick statuses. */
+export const IssueTrackerCatalog = Schema.Struct({
+  projects: Schema.Array(IssueTrackerProject),
+  statuses: Schema.Array(IssueTrackerStatus),
+});
+export type IssueTrackerCatalog = typeof IssueTrackerCatalog.Type;
 
 export class IssueTrackerError extends Schema.TaggedError<IssueTrackerError>()(
   "IssueTrackerError",

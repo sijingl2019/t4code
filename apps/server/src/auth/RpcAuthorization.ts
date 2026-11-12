@@ -95,7 +95,7 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.issuesList]: AuthOrchestrationReadScope,
   [WS_METHODS.issuesGet]: AuthOrchestrationReadScope,
   [WS_METHODS.issuesTestConnection]: AuthSettingsWriteScope,
-  [WS_METHODS.issuesSyncBindings]: AuthSettingsWriteScope,
+  [WS_METHODS.issuesCatalog]: AuthSettingsWriteScope,
   [WS_METHODS.memoryGetStats]: AuthOrchestrationReadScope,
   [WS_METHODS.memoryClear]: AuthSettingsWriteScope,
   [WS_METHODS.serverSearchAcpRegistry]: AuthOrchestrationReadScope,

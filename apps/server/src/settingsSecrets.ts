@@ -2,7 +2,6 @@ import {
   AntigravitySettings,
   ClaudeSettings,
   CloudSpeechCredentials,
-  IssueRepoCredentials,
   OnesSettings,
   CodexSettings,
   EasDeviceHostConfig,
@@ -52,7 +51,6 @@ const usageLimitSecretFields = secretSettingsFields(UsageLimitSourceConfig);
 const textGeneratorSecretFields = secretSettingsFields(TextGeneratorConfig);
 const voiceSecretFields = secretSettingsFields(CloudSpeechCredentials);
 const onesSecretFields = secretSettingsFields(OnesSettings);
-const issueRepoSecretFields = secretSettingsFields(IssueRepoCredentials);
 const easDeviceHostSecretFields = secretSettingsFields(EasDeviceHostConfig);
 const simlockDeviceHostSecretFields = secretSettingsFields(SimlockDeviceHostConfig);
 const encode = (value: string) => Buffer.from(value, "utf8").toString("base64url");
@@ -263,11 +261,6 @@ function mapSecretFieldGroups(
       onesSecretFields,
       (field) => `ones-${field}`,
     ) as ServerSettings["ones"],
-    issueRepoCredentials: mapFields(
-      settings.issueRepoCredentials,
-      issueRepoSecretFields,
-      (field) => `issue-repo-${field}`,
-    ) as ServerSettings["issueRepoCredentials"],
     providerInstances,
     sourceControlHosts,
     usageLimitSources,

@@ -1,11 +1,21 @@
-// @effect-diagnostics extendsNativeError:off globalDate:off - plain Promise client wrapped by IssueService.
+// @effect-diagnostics globalDate:off - plain Promise client wrapped by IssueService.
 /**
- * ONES (private deployment) client. Endpoints and fields were verified against a real server;
+ * ONES (private deployment) adapter. Endpoints and fields were verified against a real server;
  * see docs/ones-api-notes.md in the kika project before changing them.
  */
-import type { Issue, IssueAttachmentRef } from "@t3tools/contracts";
+import type {
+  Issue,
+  IssueAttachmentRef,
+  IssueStatusFilter,
+  IssueTrackerProject,
+  IssueTrackerStatus,
+} from "@t3tools/contracts";
 
-class OnesError extends Error {}
+import {
+  IssueTrackerClient,
+  IssueTrackerClientError,
+  type Json as J,
+} from "./IssueTrackerClient.ts";
 
 export interface OnesConnection {
   readonly baseUrl: string;
@@ -14,12 +24,9 @@ export interface OnesConnection {
   readonly password: string;
 }
 
-type J = any;
-
-const TIMEOUT_MS = 30_000;
 const LIMIT = 500;
 const LIST_QUERY = (user: string, filtered: boolean): string =>
-  `{ tasks(filter: { assign_in: ["${user}"]${filtered ? ', statusCategory_notIn: ["done"]' : ""} }, limit: ${LIMIT}) { uuid number name key status{uuid name} assign{uuid name} } }`;
+  `{ tasks(filter: { assign_in: ["${user}"]${filtered ? ', statusCategory_notIn: ["done"]' : ""} }, limit: ${LIMIT}) { uuid number name status{uuid name} project{uuid} descriptionText serverUpdateStamp } }`;
 // The verified query has no status category, so done tasks are also filtered by name.
 const DONE_NAME = /^(?![未待]).*(完成|关闭|取消|已发布|done|closed|resolved)$/i;
 
@@ -39,106 +46,113 @@ export function extractImages(html: string): IssueAttachmentRef[] {
   return out;
 }
 
-export class OnesClient {
+export class OnesClient extends IssueTrackerClient {
   private token = "";
   private userUuid = "";
   private team: string;
   private filtered = true;
-  private loginPromise: Promise<void> | null = null;
-
   private readonly connection: OnesConnection;
-  private readonly fetchImpl: typeof fetch;
 
   constructor(connection: OnesConnection, fetchImpl: typeof fetch = fetch) {
+    super(connection.baseUrl, fetchImpl);
     this.connection = connection;
-    this.fetchImpl = fetchImpl;
     this.team = connection.teamUuid;
   }
 
-  private get base(): string {
-    return this.connection.baseUrl.replace(/\/+$/, "");
-  }
-
-  private ensureLogin(): Promise<void> {
-    this.loginPromise ??= this.login().finally(() => {
-      this.loginPromise = null;
-    });
-    return this.loginPromise;
-  }
-
-  private async login(): Promise<void> {
-    if (!this.base || !this.connection.email || !this.connection.password) {
-      throw new OnesError("ONES is not configured (URL, email and password are required).");
+  protected async login(): Promise<void> {
+    if (!this.baseUrl || !this.connection.email || !this.connection.password) {
+      throw new IssueTrackerClientError(
+        "ONES is not configured (URL, email and password are required).",
+      );
     }
-    const res = await this.fetchImpl(`${this.base}/project/api/project/auth/login`, {
+    const res = await this.fetchTimed(`${this.baseUrl}/project/api/project/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: this.connection.email, password: this.connection.password }),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
     });
-    if (res.status === 401) throw new OnesError("ONES login rejected (check email/password).");
-    if (res.status === 404) throw new OnesError("ONES login endpoint not found: check the URL.");
-    if (!res.ok) throw new OnesError(`ONES login failed: HTTP ${res.status}`);
+    if (res.status === 401)
+      throw new IssueTrackerClientError("ONES login rejected (check email/password).");
+    if (res.status === 404)
+      throw new IssueTrackerClientError("ONES login endpoint not found: check the URL.");
+    if (!res.ok) throw new IssueTrackerClientError(`ONES login failed: HTTP ${res.status}`);
     const j: J = await res.json();
     if (!j?.user?.token || !j?.user?.uuid) {
-      throw new OnesError("ONES login response is missing the user token.");
+      throw new IssueTrackerClientError("ONES login response is missing the user token.");
     }
     this.token = j.user.token;
     this.userUuid = j.user.uuid;
     this.team ||= j.teams?.[0]?.uuid ?? "";
   }
 
-  private authHeaders(): Record<string, string> {
+  protected authHeaders(): Record<string, string> {
     return { "Ones-Auth-Token": this.token, "Ones-User-Id": this.userUuid };
   }
 
-  private async api(method: string, path: string, body?: unknown, retried = false): Promise<J> {
-    if (!this.token) await this.ensureLogin();
-    const res = await this.fetchImpl(`${this.base}/project/api/project/team/${this.team}${path}`, {
-      method,
-      headers: { "Content-Type": "application/json", ...this.authHeaders() },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-    if (res.status === 401) {
-      if (retried) throw new OnesError("ONES rejected the session after re-login.");
-      this.token = "";
-      return this.api(method, path, body, true);
-    }
-    if (!res.ok) {
-      throw Object.assign(new OnesError(`ONES ${method} ${path} failed: HTTP ${res.status}`), {
-        status: res.status,
-      });
-    }
-    return res.json();
-  }
-
-  /** Logs in and reports who and which team, for the settings "Test connection" button. */
-  async testConnection(): Promise<string> {
-    this.token = "";
-    await this.ensureLogin();
+  protected sessionSummary(): string {
     return `Signed in to team ${this.team}.`;
   }
 
-  /** Open tasks assigned to the signed-in user, with details. */
-  async listMyOpenIssues(): Promise<Issue[]> {
-    if (!this.token) await this.ensureLogin();
+  // Login fills in the team when none is configured, so it must run before the URL is built.
+  private async api(method: string, path: string, body?: unknown): Promise<J> {
+    await this.ensureLogin();
+    return this.requestJson(
+      method,
+      `${this.baseUrl}/project/api/project/team/${this.team}${path}`,
+      body,
+    );
+  }
+
+  /** Verified: graphql `projects { uuid name }`. */
+  async listProjects(): Promise<IssueTrackerProject[]> {
+    const r = await this.api("POST", "/items/graphql", { query: "{ projects { uuid name } }" });
+    return (r?.data?.projects ?? []).map((p: J) => ({ id: String(p.uuid), name: String(p.name) }));
+  }
+
+  /** Verified: GET `/task_statuses`. */
+  async listStatuses(): Promise<IssueTrackerStatus[]> {
+    const r = await this.api("GET", "/task_statuses");
+    return (r?.task_statuses ?? []).map((s: J) => ({
+      id: String(s.uuid),
+      name: String(s.name),
+      category: String(s.category ?? ""),
+    }));
+  }
+
+  async listMyIssues(filter: IssueStatusFilter): Promise<Issue[]> {
+    await this.ensureLogin();
+    // An explicit filter needs every status, so the server-side "not done" filter is skipped.
+    const filtered = filter.mode === "default" && this.filtered;
     let r: J;
     try {
-      r = await this.api("POST", "/items/graphql", {
-        query: LIST_QUERY(this.userUuid, this.filtered),
-      });
+      r = await this.api("POST", "/items/graphql", { query: LIST_QUERY(this.userUuid, filtered) });
     } catch (e) {
-      if (!this.filtered || (e as { status?: number }).status !== 400) throw e;
+      if (!filtered || (e as IssueTrackerClientError).status !== 400) throw e;
       this.filtered = false;
       r = await this.api("POST", "/items/graphql", { query: LIST_QUERY(this.userUuid, false) });
     }
-    const tasks: J[] = (r?.data?.tasks ?? []).filter(
-      (t: J) => !DONE_NAME.test(t.status?.name ?? ""),
+    const ids = new Set(filter.statusIds);
+    const tasks: J[] = (r?.data?.tasks ?? []).filter((t: J) =>
+      filter.mode === "include"
+        ? ids.has(t.status?.uuid)
+        : filter.mode === "exclude"
+          ? !ids.has(t.status?.uuid)
+          : !DONE_NAME.test(t.status?.name ?? ""),
     );
-    const out: Issue[] = [];
-    for (const t of tasks) out.push(await this.loadIssue(t.uuid, t.status?.name ?? ""));
-    return out;
+    // One query, no per-task detail calls: a task whose details the user may not open (403)
+    // must not hide the rest. Comments and attachments come from `loadIssue` on pick.
+    return tasks.map((t) => ({
+      uuid: t.uuid,
+      key: `ONES-${t.number}`,
+      number: t.number,
+      title: t.name ?? "",
+      descriptionText: t.descriptionText ?? "",
+      status: t.status?.name ?? "",
+      url: `${this.baseUrl}/project/#/team/${this.team}/task/${t.uuid}`,
+      trackerProjectId: t.project?.uuid ?? "",
+      updatedAt: iso(t.serverUpdateStamp),
+      comments: [],
+      attachments: [],
+    }));
   }
 
   async loadIssue(uuid: string, status = ""): Promise<Issue> {
@@ -153,7 +167,7 @@ export class OnesClient {
         attachments.push({
           name: x.resource.name,
           // Unverified URL shape (no sample task had attachments in kika's probe).
-          url: `${this.base}/project/api/project/team/${this.team}/res/attachment/${x.resource.uuid}`,
+          url: `${this.baseUrl}/project/api/project/team/${this.team}/res/attachment/${x.resource.uuid}`,
           isImage: String(x.resource.mime ?? "").startsWith("image/"),
         });
       }
@@ -165,29 +179,13 @@ export class OnesClient {
       title: d.summary ?? "",
       descriptionText: d.desc ?? "",
       status,
-      url: `${this.base}/project/#/team/${this.team}/task/${d.uuid}`,
-      onesProjectUuid: d.project_uuid ?? "",
+      url: `${this.baseUrl}/project/#/team/${this.team}/task/${d.uuid}`,
+      trackerProjectId: d.project_uuid ?? "",
       updatedAt: iso(d.server_update_stamp),
       comments: discussions
         .filter((x) => x.text)
         .map((x) => ({ author: x.from_name ?? "", createdAt: iso(x.send_time), text: x.text })),
       attachments,
-    };
-  }
-
-  /** ONES headers go only to the ONES origin; presigned URLs on other hosts get none. */
-  async download(url: string): Promise<{ bytes: Uint8Array; mimeType: string }> {
-    const sameOrigin = new URL(url).origin === new URL(this.base).origin;
-    if (sameOrigin && !this.token) await this.ensureLogin();
-    const res = await this.fetchImpl(url, {
-      headers: sameOrigin ? this.authHeaders() : {},
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-    if (!res.ok) throw new OnesError(`Attachment download failed: HTTP ${res.status}`);
-    return {
-      bytes: new Uint8Array(await res.arrayBuffer()),
-      mimeType:
-        res.headers.get("content-type")?.split(";")[0]?.trim() || "application/octet-stream",
     };
   }
 }

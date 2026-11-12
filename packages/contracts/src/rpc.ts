@@ -389,7 +389,7 @@ import {
   IssueGetResult,
   IssueListInput,
   Issue,
-  IssueSyncBindingsResult,
+  IssueTrackerCatalog,
   IssueTestConnectionResult,
   IssueTrackerError,
 } from "./issues.ts";
@@ -619,7 +619,7 @@ export const WS_METHODS = {
   issuesList: "issues.list",
   issuesGet: "issues.get",
   issuesTestConnection: "issues.testConnection",
-  issuesSyncBindings: "issues.syncBindings",
+  issuesCatalog: "issues.catalog",
   memoryGetStats: "memory.getStats",
   memoryClear: "memory.clear",
   projectCloneStart: "projectClone.start",
@@ -1331,10 +1331,10 @@ const WsIssuesTestConnectionRpc = Rpc.make(WS_METHODS.issuesTestConnection, {
   error: EnvironmentAuthorizationError,
 });
 
-const WsIssuesSyncBindingsRpc = Rpc.make(WS_METHODS.issuesSyncBindings, {
+const WsIssuesCatalogRpc = Rpc.make(WS_METHODS.issuesCatalog, {
   payload: Schema.Struct({}),
-  success: IssueSyncBindingsResult,
-  error: EnvironmentAuthorizationError,
+  success: IssueTrackerCatalog,
+  error: Schema.Union([IssueTrackerError, EnvironmentAuthorizationError]),
 });
 
 const WsMemoryGetStatsRpc = Rpc.make(WS_METHODS.memoryGetStats, {
@@ -2234,7 +2234,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsIssuesListRpc,
   WsIssuesGetRpc,
   WsIssuesTestConnectionRpc,
-  WsIssuesSyncBindingsRpc,
+  WsIssuesCatalogRpc,
   WsMemoryGetStatsRpc,
   WsMemoryClearRpc,
   WsProjectCloneStartRpc,

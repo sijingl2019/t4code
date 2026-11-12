@@ -1348,30 +1348,39 @@ export const StorageCleanupSettings = Schema.Struct({
 export type StorageCleanupSettings = typeof StorageCleanupSettings.Type;
 
 /** ONES (private deployment) issue tracker connection. Credentials are stored as secrets. */
+/**
+ * Which tracker statuses the issue list shows. `default` lets the adapter hide done issues;
+ * `include` shows only `statusIds`; `exclude` shows all but `statusIds`.
+ */
+export const IssueStatusFilter = Schema.Struct({
+  mode: Schema.Literals(["default", "include", "exclude"]).pipe(
+    Schema.withDecodingDefault(Effect.succeed("default" as const)),
+  ),
+  statusIds: Schema.Array(TrimmedNonEmptyString).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
+  ),
+});
+export type IssueStatusFilter = typeof IssueStatusFilter.Type;
+
 export const OnesSettings = Schema.Struct({
   baseUrl: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   /** Empty uses the first team the login returns. */
   teamUuid: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   email: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   password: SettingsSecretValue.pipe(Schema.withDecodingDefault(Effect.succeed("")), secretSetting),
+  statusFilter: IssueStatusFilter.pipe(
+    Schema.withDecodingDefault(Effect.succeed(Schema.decodeSync(IssueStatusFilter)({}))),
+  ),
 });
 export type OnesSettings = typeof OnesSettings.Type;
 
 /**
- * Credentials for cloning bound repositories over HTTPS (e.g. Bitbucket username + access token).
- * ponytail: one credential for all bound repos; per-binding credentials when repos span accounts.
+ * Binds an ONES project to the T4 project whose workspace root is `localPath`. One ONES project
+ * may have several entries, one per bound T4 project.
  */
-export const IssueRepoCredentials = Schema.Struct({
-  username: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
-  token: SettingsSecretValue.pipe(Schema.withDecodingDefault(Effect.succeed("")), secretSetting),
-});
-export type IssueRepoCredentials = typeof IssueRepoCredentials.Type;
-
-/** Maps an ONES project to a local checkout; a missing checkout is cloned from `repoUrl`. */
 export const IssueProjectBinding = Schema.Struct({
   onesProjectUuid: TrimmedNonEmptyString,
   localPath: TrimmedNonEmptyString,
-  repoUrl: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
 });
 export type IssueProjectBinding = typeof IssueProjectBinding.Type;
 
@@ -1426,9 +1435,6 @@ export const ServerSettings = Schema.Struct({
   enableAgentBrowserAccess: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   ones: OnesSettings.pipe(
     Schema.withDecodingDefault(Effect.succeed(Schema.decodeSync(OnesSettings)({}))),
-  ),
-  issueRepoCredentials: IssueRepoCredentials.pipe(
-    Schema.withDecodingDefault(Effect.succeed(Schema.decodeSync(IssueRepoCredentials)({}))),
   ),
   issueProjectBindings: Schema.Array(IssueProjectBinding).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
@@ -1891,12 +1897,7 @@ export const ServerSettingsPatch = Schema.Struct({
       teamUuid: Schema.optionalKey(TrimmedString),
       email: Schema.optionalKey(TrimmedString),
       password: Schema.optionalKey(SettingsSecretValue),
-    }),
-  ),
-  issueRepoCredentials: Schema.optionalKey(
-    Schema.Struct({
-      username: Schema.optionalKey(TrimmedString),
-      token: Schema.optionalKey(SettingsSecretValue),
+      statusFilter: Schema.optionalKey(IssueStatusFilter),
     }),
   ),
   issueProjectBindings: Schema.optionalKey(Schema.Array(IssueProjectBinding)),

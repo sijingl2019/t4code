@@ -73,14 +73,22 @@ Features:
 - Sidebar grouped by project with an always-visible new-thread button on the project row:
   `boringSidebarEnabled` defaults to `true` (`settings.ts`), `SidebarProjectFolderHeader.tsx`;
   projects with no threads still get a folder (`keepEmptyFolders` in `Sidebar.tsx`, upstream keeps only pinned ones).
-- ONES issues (server settings `ones`, `issueRepoCredentials`, `issueProjectBindings`,
-  `issueAutoDev`): service in `apps/server/src/issues/`, RPCs `issues.*` in
+- Issue trackers, ONES only so far (server settings `ones`, `issueProjectBindings`,
+  `issueAutoDev`): service in `apps/server/src/issues/`. Trackers are adapters: `IssueTrackerClient.ts`
+  is the base class (login session, 401 re-login, timed JSON requests, attachment downloads), each
+  tracker subclasses it (`OnesClient.ts`) and registers in `issueTrackers.ts`; `IssueService` only sees
+  the base class. A binding (`issueProjectBindings`) ties a tracker project id to a T4 project's
+  workspace root; one tracker project may have several. `ones.statusFilter` (default / include /
+  exclude by status id) narrows which assigned issues are listed; `issues.catalog` returns the
+  tracker's projects and statuses for the settings UI. RPCs `issues.*` in
   `packages/contracts/src/{issues,rpc}.ts`, scopes in `apps/server/src/auth/RpcAuthorization.ts`,
-  handlers + shared `projectCloneHooks` in `apps/server/src/ws.ts`, layer in
+  handlers in `apps/server/src/ws.ts`, layer in
   `apps/server/src/orchestration-v2/runtimeLayer.ts`, secrets in `apps/server/src/settingsSecrets.ts`, span aggregates in `apps/server/src/observability/RpcInstrumentation.ts`, mock layer in `apps/server/src/ws.test.ts`.
   Client: commands in `packages/client-runtime/src/state/server.ts`, guarded scopes in
   `packages/contracts/src/clientRpcPermissions.ts`, settings form `OnesIssueSettings.tsx` (mounted in
-  `SourceControlSettings.tsx`), issue picker `components/sidebar/OnesIssuePickerDialog.tsx` (opened from
+  `ProjectsSettings.tsx`, shown when no project is selected; lists tracker projects with a T4 project
+  multi-picker), "Link ONES project" row in the palette's New project flow
+  (`apps/web/src/issues/NewProjectOnesOption.tsx`, wired via `onCreated` in `hooks/useNewProject.ts`), issue picker `components/sidebar/OnesIssuePickerDialog.tsx` (opened from
   `SidebarProjectFolderHeader.tsx`), attachments handed to the composer via
   `apps/web/src/issues/pendingIssueFiles.ts` (consumed in `ChatComposer.tsx`).
 - Tray icon (Windows/Linux) with Show App / Settings / Quit; closing the main window hides it to the
@@ -101,11 +109,19 @@ Features:
   `GlobalMemorySettings.tsx`.
 - Terminal font picker: already upstream (`TypographySettings.tsx`, `FontFamilyPicker.tsx`).
 
+## Desktop dev
+
+`dev:desktop` (the VS Code "Desktop: dev" launch) runs the **built** server `apps/server/dist/bin.mjs`,
+built once at startup; web changes hot-reload but server edits do not. Rebuild with
+`cd apps/server && vp run build`; Electron restarts the backend when `dist/bin.mjs` changes.
+
 ## ONES API
 
 Endpoints are the ones verified against the real private deployment in `e:/workspace/kika`
 (`docs/ones-api-notes.md` there). `apps/server/src/issues/OnesClient.ts` is a direct port; do not switch
-to unverified endpoints (e.g. `project_in` filters) without probing the server first.
+to unverified endpoints (e.g. `project_in` filters) without probing the server first. Verified here
+since: graphql `projects { uuid name }`, task fields `project{uuid} descriptionText serverUpdateStamp`,
+and `GET .../team/{team}/task_statuses`.
 
 ## Packaging (Windows)
 

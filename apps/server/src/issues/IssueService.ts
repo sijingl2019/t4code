@@ -1,9 +1,8 @@
 // @effect-diagnostics nodeBuiltinImport:off
 /**
- * ONES issue integration: listing/reading issues for bound projects, keeping bound checkouts
- * present as projects, and the `#!auto` auto-development poller.
+ * Issue tracker integration (adapters in issueTrackers.ts): listing tracker projects, listing/reading issues for bound T4 projects,
+ * and the `#!auto` auto-development poller.
  */
-import * as NodeChildProcess from "node:child_process";
 import * as NodeFSP from "node:fs/promises";
 import * as NodePath from "node:path";
 
@@ -15,22 +14,17 @@ import {
   IssueTrackerError,
   MessageId,
   ProjectId,
-  settingsSecretLiteral,
   type Issue,
   type IssueFile,
   type IssueGetResult,
-  type IssueProjectBinding,
-  type IssueSyncBindingsResult,
+  type IssueTrackerCatalog,
   type IssueTestConnectionResult,
   type Project,
-  type ProjectCloneStartInput,
   type ServerSettings,
 } from "@t3tools/contracts";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
-import * as SecureRandom from "effect/crypto/SecureRandom";
-import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -40,7 +34,8 @@ import * as ThreadLaunchService from "../orchestration-v2/ThreadLaunchService.ts
 import * as ProjectService from "../project/ProjectService.ts";
 import * as Scheduler from "../scheduling/Scheduler.ts";
 import * as ServerSettingsModule from "../serverSettings.ts";
-import { OnesClient, type OnesConnection } from "./OnesClient.ts";
+import { issueTrackerFor } from "./issueTrackers.ts";
+import type { IssueTrackerClient } from "./IssueTrackerClient.ts";
 
 const LIST_CACHE_MS = 60_000;
 /** Per-file cap for attachments sent inline to the composer. */
@@ -52,10 +47,7 @@ export class IssueService extends Context.Service<
     readonly list: (projectId: ProjectId) => Effect.Effect<ReadonlyArray<Issue>, IssueTrackerError>;
     readonly get: (issueUuid: string) => Effect.Effect<IssueGetResult, IssueTrackerError>;
     readonly testConnection: Effect.Effect<IssueTestConnectionResult>;
-    /** `startClone` is the server's clone flow, which also creates the project. */
-    readonly syncBindings: <E>(
-      startClone: (input: ProjectCloneStartInput) => Effect.Effect<unknown, E>,
-    ) => Effect.Effect<IssueSyncBindingsResult>;
+    readonly catalog: Effect.Effect<IssueTrackerCatalog, IssueTrackerError>;
   }
 >()("t3/issues/IssueService") {}
 
@@ -109,42 +101,6 @@ export function buildIssuePrompt(
   return lines.join("\n");
 }
 
-function onesConnection(settings: ServerSettings): OnesConnection {
-  return {
-    baseUrl: settings.ones.baseUrl,
-    teamUuid: settings.ones.teamUuid,
-    email: settings.ones.email,
-    // ponytail: secret-provider references (1Password, …) are not resolved here; literals only.
-    password: settingsSecretLiteral(settings.ones.password),
-  };
-}
-
-/** Stores HTTPS credentials in git's credential helper so clones and later pulls can use them. */
-function approveGitCredentials(repoUrl: string, username: string, token: string): Promise<void> {
-  const url = new URL(repoUrl);
-  if (url.protocol !== "https:" && url.protocol !== "http:") return Promise.resolve();
-  return new Promise((resolve, reject) => {
-    const child = NodeChildProcess.spawn("git", ["credential", "approve"], {
-      stdio: ["pipe", "ignore", "pipe"],
-    });
-    let stderr = "";
-    child.stderr.on("data", (chunk) => (stderr += String(chunk)));
-    child.on("error", reject);
-    child.on("close", (code) =>
-      code === 0 ? resolve() : reject(new Error(`git credential approve failed: ${stderr.trim()}`)),
-    );
-    child.stdin.end(
-      `protocol=${url.protocol.slice(0, -1)}\nhost=${url.host}\nusername=${username}\npassword=${token}\n\n`,
-    );
-  });
-}
-
-const pathExists = (path: string) =>
-  NodeFSP.stat(path).then(
-    () => true,
-    () => false,
-  );
-
 const safeFileName = (name: string) =>
   name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").slice(0, 120);
 
@@ -157,19 +113,18 @@ export const layer = Layer.effect(
     const threadLaunch = yield* ThreadLaunchService.ThreadLaunchService;
     const scheduler = yield* Scheduler.Scheduler;
     const platform = yield* HostProcess.Platform;
-    const random = yield* SecureRandom.SecureRandom;
 
     // One client per connection so its login token is reused.
-    let client: { key: string; value: OnesClient } | null = null;
+    let client: { key: string; value: IssueTrackerClient } | null = null;
     let listCache: { key: string; at: number; issues: Issue[] } | null = null;
 
     const readSettings = settingsService.getSettings.pipe(Effect.mapError(fail));
 
     const clientFor = (settings: ServerSettings) => {
-      const connection = onesConnection(settings);
-      const key = JSON.stringify(connection);
+      const adapter = issueTrackerFor(settings);
+      const key = adapter.connectionKey(settings);
       if (client?.key !== key) {
-        client = { key, value: new OnesClient(connection) };
+        client = { key, value: adapter.create(settings) };
         listCache = null;
       }
       return client.value;
@@ -180,12 +135,16 @@ export const layer = Layer.effect(
       fresh = false,
     ) {
       const ones = clientFor(settings);
-      const key = client!.key;
+      const filter = issueTrackerFor(settings).statusFilter(settings);
+      const key = `${client!.key}|${filter.mode}:${filter.statusIds.join(",")}`;
       const now = yield* Clock.currentTimeMillis;
       if (!fresh && listCache?.key === key && now - listCache.at < LIST_CACHE_MS) {
         return listCache.issues;
       }
-      const issues = yield* Effect.tryPromise({ try: () => ones.listMyOpenIssues(), catch: fail });
+      const issues = yield* Effect.tryPromise({
+        try: () => ones.listMyIssues(filter),
+        catch: fail,
+      });
       listCache = { key, at: now, issues };
       return issues;
     });
@@ -201,7 +160,7 @@ export const layer = Layer.effect(
       const uuids = new Set(bindingsFor(settings, project).map((b) => b.onesProjectUuid));
       if (uuids.size === 0) return Effect.succeed([] as Issue[]);
       return listAll(settings, fresh).pipe(
-        Effect.map((issues) => issues.filter((issue) => uuids.has(issue.onesProjectUuid))),
+        Effect.map((issues) => issues.filter((issue) => uuids.has(issue.trackerProjectId))),
       );
     };
 
@@ -260,71 +219,28 @@ export const layer = Layer.effect(
       }),
     );
 
-    const syncBinding = Effect.fn("IssueService.syncBinding")(function* (
-      settings: ServerSettings,
-      binding: IssueProjectBinding,
-      startClone: (input: ProjectCloneStartInput) => Effect.Effect<unknown, IssueTrackerError>,
-    ) {
-      const localPath = NodePath.resolve(binding.localPath);
-      const existing = yield* projects.getByWorkspaceRoot(localPath).pipe(Effect.mapError(fail));
-      if (Option.isSome(existing)) return { outcome: "linked" as const, message: "已在项目列表中" };
-      const title = NodePath.basename(localPath);
-      const projectId = ProjectId.make(yield* random.uuidV4().pipe(Effect.mapError(fail)));
-      if (yield* Effect.promise(() => pathExists(localPath))) {
-        yield* projects
-          .bootstrap({
-            commandId: CommandId.make(`ones-binding-create:${projectId}`),
-            projectId,
-            title,
-            workspaceRoot: localPath,
-          })
-          .pipe(Effect.mapError(fail));
-        return { outcome: "created" as const, message: "已添加到项目列表" };
-      }
-      if (binding.repoUrl === "") {
-        return { outcome: "skipped" as const, message: "本地目录不存在且未配置仓库地址" };
-      }
-      const { username, token } = settings.issueRepoCredentials;
-      const tokenValue = settingsSecretLiteral(token);
-      if (username !== "" && tokenValue !== "") {
-        yield* Effect.tryPromise({
-          try: () => approveGitCredentials(binding.repoUrl, username, tokenValue),
+    const catalog: IssueService["Service"]["catalog"] = readSettings.pipe(
+      Effect.flatMap((settings) => {
+        const tracker = clientFor(settings);
+        return Effect.tryPromise({
+          try: async () => {
+            const [projects, statuses] = await Promise.all([
+              tracker.listProjects(),
+              tracker.listStatuses(),
+            ]);
+            return { projects, statuses };
+          },
           catch: fail,
         });
-      }
-      yield* Effect.promise(() => NodeFSP.mkdir(NodePath.dirname(localPath), { recursive: true }));
-      yield* startClone({
-        projectId,
-        title,
-        createdAt: DateTime.formatIso(yield* DateTime.now),
-        remoteUrl: binding.repoUrl,
-        destinationPath: localPath,
-      });
-      return { outcome: "cloning" as const, message: "正在克隆，完成后自动加入项目列表" };
-    });
-
-    const syncBindings: IssueService["Service"]["syncBindings"] = (startClone) =>
-      settingsService.getSettings.pipe(
-        Effect.flatMap((settings) =>
-          Effect.forEach(settings.issueProjectBindings, (binding) =>
-            syncBinding(settings, binding, (input) =>
-              startClone(input).pipe(Effect.mapError(fail)),
-            ).pipe(
-              Effect.catch((error: IssueTrackerError) =>
-                Effect.succeed({ outcome: "failed" as const, message: error.message }),
-              ),
-              Effect.map((result) => ({ localPath: binding.localPath, ...result })),
-            ),
-          ),
-        ),
-        Effect.orElseSucceed(() => []),
-      );
+      }),
+      Effect.withSpan("IssueService.catalog"),
+    );
 
     let lastPollAt = 0;
     // Launch is idempotent per commandId; this only saves the repeat round trips.
     const launched = new Set<string>();
 
-    const downloadForAuto = (ones: OnesClient, issue: Issue) =>
+    const downloadForAuto = (ones: IssueTrackerClient, issue: Issue) =>
       Effect.tryPromise({
         try: async () => {
           const dir = NodePath.join(config.stateDir, "ones-attachments", issue.key);
@@ -348,16 +264,20 @@ export const layer = Layer.effect(
     const launchAuto = Effect.fn("IssueService.launchAuto")(function* (
       settings: ServerSettings,
       project: Project,
-      issue: Issue,
+      listed: Issue,
     ) {
       const modelSelection = project.defaultModelSelection ?? settings.defaultModelSelection;
       if (modelSelection === null) {
         yield* Effect.logWarning("ONES auto-dev skipped: no default model for project", {
           project: project.title,
-          issue: issue.key,
+          issue: listed.key,
         });
         return;
       }
+      const issue = yield* Effect.tryPromise({
+        try: () => clientFor(settings).loadIssue(listed.uuid, listed.status),
+        catch: fail,
+      });
       const attachmentPaths = yield* downloadForAuto(clientFor(settings), issue);
       yield* threadLaunch
         .launch({
@@ -415,6 +335,6 @@ export const layer = Layer.effect(
 
     yield* scheduler.register("ones-auto-dev", pollAutoDev);
 
-    return IssueService.of({ list, get, testConnection, syncBindings });
+    return IssueService.of({ list, get, testConnection, catalog });
   }),
 );
