@@ -12,6 +12,8 @@ import * as ElectronMenu from "../electron/ElectronMenu.ts";
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
 import * as DesktopUpdates from "../updates/DesktopUpdates.ts";
 import * as DesktopWindow from "./DesktopWindow.ts";
+import * as DesktopAssets from "../app/DesktopAssets.ts";
+import * as DesktopTray from "./DesktopTray.ts";
 
 export class DesktopApplicationMenuActionError extends Schema.TaggedError<DesktopApplicationMenuActionError>()(
   "DesktopApplicationMenuActionError",
@@ -116,6 +118,7 @@ const handleCheckForUpdatesMenuClick = Effect.gen(function* () {
 export const make = Effect.gen(function* () {
   const electronMenu = yield* ElectronMenu.ElectronMenu;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
+  const assets = yield* DesktopAssets.DesktopAssets;
   const context = yield* Effect.context<DesktopApplicationMenuRuntimeServices>();
   const runPromise = Effect.runPromiseWith(context);
 
@@ -326,6 +329,25 @@ export const make = Effect.gen(function* () {
     );
 
     yield* electronMenu.setApplicationMenu(template);
+
+    if (environment.platform !== "darwin") {
+      const iconPaths = yield* assets.iconPaths;
+      Option.match(environment.platform === "win32" ? iconPaths.ico : iconPaths.png, {
+        onNone: () => undefined,
+        onSome: (icon) =>
+          DesktopTray.createTray({
+            icon,
+            tooltip: environment.displayName,
+            onShowApp: () => {
+              runMenuEffect(
+                "show-app",
+                Effect.flatMap(DesktopWindow.DesktopWindow, (window) => window.activate),
+              );
+            },
+            onSettings: settingsClick,
+          }),
+      });
+    }
   }).pipe(Effect.withSpan("desktop.menu.configure"));
 
   return DesktopApplicationMenu.of({

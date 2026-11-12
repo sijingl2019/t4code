@@ -3,6 +3,7 @@ import { assert, describe, it } from "@effect/vitest";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 
 import * as Electron from "electron";
 import { vi } from "vite-plus/test";
@@ -17,6 +18,7 @@ import * as ElectronMenu from "../electron/ElectronMenu.ts";
 import * as DesktopApplicationMenu from "./DesktopApplicationMenu.ts";
 import * as DesktopConfig from "../app/DesktopConfig.ts";
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
+import * as DesktopAssets from "../app/DesktopAssets.ts";
 import * as DesktopUpdates from "../updates/DesktopUpdates.ts";
 import * as DesktopWindow from "./DesktopWindow.ts";
 
@@ -125,6 +127,16 @@ const configureMenu = (
         Layer.provideMerge(layerDesktopUpdates),
         Layer.provideMerge(layerElectronDialog),
         Layer.provideMerge(layerElectronApp),
+        Layer.provideMerge(
+          Layer.succeed(DesktopAssets.DesktopAssets, {
+            iconPaths: Effect.succeed({
+              ico: Option.none(),
+              icns: Option.none(),
+              png: Option.none(),
+            }),
+            resolveResourcePath: () => Effect.succeedNone,
+          }),
+        ),
         Layer.provideMerge(
           DesktopEnvironment.layer({ ...environmentInput, ...environment }).pipe(
             Layer.provide(Layer.mergeAll(NodeServices.layer, DesktopConfig.layerTest({}))),

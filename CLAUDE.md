@@ -83,6 +83,9 @@ Features:
   `SourceControlSettings.tsx`), issue picker `components/sidebar/OnesIssuePickerDialog.tsx` (opened from
   `SidebarProjectFolderHeader.tsx`), attachments handed to the composer via
   `apps/web/src/issues/pendingIssueFiles.ts` (consumed in `ChatComposer.tsx`).
+- Tray icon (Windows/Linux) with Show App / Settings / Quit; closing the main window hides it to the
+  tray instead of quitting: `apps/desktop/src/window/DesktopTray.ts`, created in
+  `DesktopApplicationMenu.ts` `configure`, hide-on-close in `DesktopWindow.ts`'s `close` handler.
 - Global memory (off by default): server setting `globalMemory`; `apps/server/src/memory/` listens to
   `run.updated`, summarizes a thread every N turns or M minutes (first wins) through
   `generateTranscriptionPostProcessing`, and stores memories in self-created `t4_memory_*` tables in
