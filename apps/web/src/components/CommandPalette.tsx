@@ -128,7 +128,6 @@ import { useAtomQueryRunner } from "../state/use-atom-query-runner";
 import { useScratchProject } from "../hooks/useScratchProject";
 import { useStartTriage } from "../hooks/useStartTriage";
 import { pickTriageEnvironment } from "../lib/triageTarget";
-import { OnesLinkPromptHost, useRequestOnesLink } from "../issues/OnesProjectLinks";
 import { useNewProject } from "../hooks/useNewProject";
 import { useOrderWhileOpen } from "../hooks/useOrderWhileOpen";
 import { reportProjectFailure, useProjectPin } from "../hooks/useProjectGroupUpdate";
@@ -318,7 +317,6 @@ export function CommandPalette({ children }: { children: ReactNode }) {
   return (
     <ComposerHandleContext value={composerHandleRef}>
       <ThreadContextDragGhost />
-      <OnesLinkPromptHost />
       <CommandDialog
         open={state.open}
         onOpenChange={(open, eventDetails) => {
@@ -539,7 +537,6 @@ function OpenCommandPaletteDialog(props: {
   // State lags a render behind, so a repeated Enter could start a second create.
   const newProjectSubmittingRef = useRef(false);
   const createNewProject = useNewProject();
-  const requestOnesLink = useRequestOnesLink();
   const cloneLookupGeneration = useRef(0);
   const [isRemoteProjectLookingUp, setIsRemoteProjectLookingUp] = useState(false);
   const [isRemoteProjectCloning, setIsRemoteProjectCloning] = useState(false);
@@ -1975,11 +1972,6 @@ function OpenCommandPaletteDialog(props: {
       }
       return;
     }
-    requestOnesLink({
-      environmentId: input.environmentId,
-      workspaceRoot: cwd,
-      projectName: inferProjectTitleFromPath(cwd),
-    });
 
     const navigationResult = await settlePromise(() =>
       handleNewThread(scopeProjectRef(input.environmentId, projectId)),
@@ -2032,12 +2024,6 @@ function OpenCommandPaletteDialog(props: {
         environmentId: newProjectFlow.environmentId,
         name: newProjectName,
         publishTo: newProjectPublishes ? newProjectPublishTarget : null,
-        onCreated: (workspaceRoot) =>
-          requestOnesLink({
-            environmentId: newProjectFlow.environmentId,
-            workspaceRoot,
-            projectName: newProjectName,
-          }),
       }),
     );
     newProjectSubmittingRef.current = false;

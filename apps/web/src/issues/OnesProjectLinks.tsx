@@ -1,7 +1,6 @@
 import type { EnvironmentId, IssueTrackerProject } from "@t3tools/contracts";
 import { ChevronDownIcon } from "lucide-react";
 import { useState } from "react";
-import { create } from "zustand";
 
 import { Button } from "~/components/ui/button";
 import {
@@ -107,76 +106,46 @@ export function OnesProjectsField(props: {
   );
 }
 
-interface OnesLinkTarget {
-  readonly environmentId: EnvironmentId;
-  readonly workspaceRoot: string;
-  readonly projectName: string;
-}
-
-const useOnesLinkPrompt = create<{
-  readonly target: OnesLinkTarget | null;
-  readonly set: (target: OnesLinkTarget | null) => void;
-}>((set) => ({ target: null, set: (target) => set({ target }) }));
-
-/** Asks to link ONES projects to a just-added project, when that environment has ONES set up. */
-export function useRequestOnesLink() {
-  const serverConfigs = useServerConfigs();
-  return (target: OnesLinkTarget) => {
-    if (onesConfigured(serverConfigs.get(target.environmentId)?.settings)) {
-      useOnesLinkPrompt.getState().set(target);
-    }
-  };
-}
-
-/** Mounted once; the last step of adding a project while ONES is configured. */
-export function OnesLinkPromptHost() {
-  const target = useOnesLinkPrompt((state) => state.target);
-  if (!target) return null;
-  return (
-    <OnesLinkPrompt
-      key={`${target.environmentId}:${target.workspaceRoot}`}
-      target={target}
-      onClose={() => useOnesLinkPrompt.getState().set(null)}
-    />
-  );
-}
-
-function OnesLinkPrompt({ target, onClose }: { target: OnesLinkTarget; onClose: () => void }) {
-  const links = useOnesProjectLinks(target.environmentId, target.workspaceRoot);
-  const [selected, setSelected] = useState<ReadonlyArray<string>>([]);
+/** Picks the ONES projects linked to one T4 project; opened from the project folder's "…" menu. */
+export function OnesProjectLinkDialog(props: {
+  environmentId: EnvironmentId;
+  workspaceRoot: string;
+  projectName: string;
+  onClose: () => void;
+}) {
+  const links = useOnesProjectLinks(props.environmentId, props.workspaceRoot);
+  const [selected, setSelected] = useState<ReadonlyArray<string> | null>(null);
   const [busy, setBusy] = useState(false);
-  // Only a working connection gets the step; a failed catalog load skips it silently.
-  if (links.error) return null;
-  const link = async () => {
+  const save = async () => {
     setBusy(true);
-    const saved = await links.save(selected);
+    const saved = selected === null || (await links.save(selected));
     setBusy(false);
-    if (saved) onClose();
+    if (saved) props.onClose();
   };
   return (
-    <Dialog open={links.projects !== null} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && props.onClose()}>
       <DialogPopup className="w-full sm:w-[28rem]">
         <DialogHeader>
-          <DialogTitle>Link ONES project</DialogTitle>
+          <DialogTitle>ONES projects</DialogTitle>
           <DialogDescription>
-            Pick issues from these ONES projects in {target.projectName}.
+            Pick issues from these ONES projects in {props.projectName}.
           </DialogDescription>
         </DialogHeader>
         <DialogPanel>
           <OnesProjectsField
             projects={links.projects}
             error={links.error}
-            value={selected}
+            value={selected ?? links.linkedIds}
             onChange={setSelected}
             disabled={busy}
           />
         </DialogPanel>
         <DialogFooter>
-          <Button variant="ghost" onClick={onClose} disabled={busy}>
-            Skip
+          <Button variant="ghost" onClick={props.onClose} disabled={busy}>
+            Cancel
           </Button>
-          <Button onClick={() => void link()} disabled={busy || selected.length === 0}>
-            Link
+          <Button onClick={() => void save()} disabled={busy || links.error !== null}>
+            Save
           </Button>
         </DialogFooter>
       </DialogPopup>

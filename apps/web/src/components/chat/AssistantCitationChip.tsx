@@ -210,6 +210,15 @@ export function AssistantCitationChip({
               eventDetails.cancel();
               return;
             }
+            // t4code: clicking away acts like Cancel (a just-cited chip is removed too).
+            if (
+              !open &&
+              commentEditor.onCancel &&
+              (eventDetails.reason === "outside-press" || eventDetails.reason === "focus-out")
+            ) {
+              commentEditor.onCancel();
+              return;
+            }
             commentEditor.onOpenChange(open);
           }}
         >

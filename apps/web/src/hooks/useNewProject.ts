@@ -71,7 +71,6 @@ export function useNewProject() {
     readonly environmentId: EnvironmentId;
     readonly name: string;
     readonly publishTo: NewProjectPublishTarget | null;
-    readonly onCreated?: (workspaceRoot: string) => void;
   }): Promise<boolean> => {
     const result = await createNew({
       environmentId: input.environmentId,
@@ -102,7 +101,6 @@ export function useNewProject() {
             },
       ),
     );
-    input.onCreated?.(workspaceRoot);
     if (input.publishTo) {
       void publishNewRepository({
         environmentId: input.environmentId,

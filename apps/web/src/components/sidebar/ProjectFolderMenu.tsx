@@ -7,6 +7,7 @@ import {
   ArchiveRestoreIcon,
   EllipsisIcon,
   FolderOpenIcon,
+  LinkIcon,
   PencilIcon,
   PinIcon,
   PinOffIcon,
@@ -21,7 +22,12 @@ import {
   useProjectGroupUpdate,
   useProjectPin,
 } from "../../hooks/useProjectGroupUpdate";
-import { OnesProjectsField, useOnesProjectLinks } from "../../issues/OnesProjectLinks";
+import {
+  OnesProjectLinkDialog,
+  OnesProjectsField,
+  useOnesProjectLinks,
+} from "../../issues/OnesProjectLinks";
+import { onesConfigured } from "../../issues/useIssueTrackerCatalog";
 import { releaseProjectDraftUploads } from "../../lib/composerDraftUploads";
 import { getLocalFileManagerName } from "../../lib/utils";
 import { readLocalApi } from "../../localApi";
@@ -52,12 +58,13 @@ const ProjectIconPickerDialog = lazy(() =>
   })),
 );
 
-/** The project folder's "…" menu: pin, edit, reveal, archive, remove. */
+/** The project folder's "…" menu: pin, edit, ONES projects, reveal, archive, remove. */
 export function ProjectFolderMenu(props: {
   group: SidebarProjectSnapshot;
   onOpenSettings: (group: SidebarProjectSnapshot) => void;
 }) {
   const [editOpen, setEditOpen] = useState(false);
+  const [onesOpen, setOnesOpen] = useState(false);
   return (
     <>
       <Menu>
@@ -74,7 +81,11 @@ export function ProjectFolderMenu(props: {
         </MenuTrigger>
         <MenuPopup align="end">
           {/* Mounted only while open, so idle folder rows carry no extra subscriptions. */}
-          <ProjectFolderMenuItems group={props.group} onEdit={() => setEditOpen(true)} />
+          <ProjectFolderMenuItems
+            group={props.group}
+            onEdit={() => setEditOpen(true)}
+            onLinkOnes={() => setOnesOpen(true)}
+          />
         </MenuPopup>
       </Menu>
       {editOpen ? (
@@ -87,6 +98,14 @@ export function ProjectFolderMenu(props: {
           }}
         />
       ) : null}
+      {onesOpen ? (
+        <OnesProjectLinkDialog
+          environmentId={props.group.environmentId}
+          workspaceRoot={props.group.workspaceRoot}
+          projectName={props.group.displayName}
+          onClose={() => setOnesOpen(false)}
+        />
+      ) : null}
     </>
   );
 }
@@ -94,9 +113,11 @@ export function ProjectFolderMenu(props: {
 function ProjectFolderMenuItems({
   group,
   onEdit,
+  onLinkOnes,
 }: {
   group: SidebarProjectSnapshot;
   onEdit: () => void;
+  onLinkOnes: () => void;
 }) {
   const { canPinProjectGroup, setProjectGroupPinned } = useProjectPin();
   const { updateProjectGroup, canOrganizeProjectGroup } = useProjectGroupUpdate();
@@ -120,6 +141,12 @@ function ProjectFolderMenuItems({
         <PencilIcon />
         Edit
       </MenuItem>
+      {onesConfigured(config?.settings) ? (
+        <MenuItem onClick={onLinkOnes}>
+          <LinkIcon />
+          ONES projects
+        </MenuItem>
+      ) : null}
       {canReveal ? (
         <>
           <MenuSeparator />

@@ -14,7 +14,8 @@ export function resolveAssistantCitationCommentDismissal({
   draft: string | null;
   savedComment: string | undefined;
 }): AssistantCitationCommentDismissal {
-  if (reason === "escape-key" || draft === null) return { kind: "close" };
+  // t4code: dismissing the popover (Escape, click away, focus out) discards the draft like Cancel.
+  if (reason !== "none" || draft === null) return { kind: "close" };
   if (draft.trim() === (savedComment ?? "").trim()) return { kind: "close" };
   if (draft.length > ASSISTANT_CITATION_MAX_COMMENT_LENGTH) return { kind: "keep-open" };
   return { kind: "commit", comment: draft };

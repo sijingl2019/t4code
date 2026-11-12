@@ -98,12 +98,11 @@ Features:
   Client: commands in `packages/client-runtime/src/state/server.ts`, guarded scopes in
   `packages/contracts/src/clientRpcPermissions.ts`, settings form `OnesIssueSettings.tsx` (mounted in
   `ProjectsSettings.tsx`, shown when no project is selected; lists tracker projects with a T4 project
-  multi-picker), "Link ONES project" dialog as the last step of the palette's Add/New project flows
-  (`apps/web/src/issues/OnesProjectLinks.tsx`, host mounted in `CommandPalette.tsx`, requested after
-  `createProject` / via `onCreated` in `hooks/useNewProject.ts`), issue picker `components/sidebar/OnesIssuePickerDialog.tsx` (opened from
+  multi-picker), "ONES projects" dialog opened from the project folder's "…" menu
+  (`OnesProjectLinkDialog` in `apps/web/src/issues/OnesProjectLinks.tsx`), issue picker `components/sidebar/OnesIssuePickerDialog.tsx` (opened from
   `SidebarProjectFolderHeader.tsx`), attachments handed to the composer via
   `apps/web/src/issues/pendingIssueFiles.ts` (consumed in `ChatComposer.tsx`).
-- Sidebar project folder "…" menu (Pin / Edit / Open in File Explorer / Archive / Remove) in place of
+- Sidebar project folder "…" menu (Pin / Edit / ONES projects / Open in File Explorer / Archive / Remove) in place of
   the collapse chevron, with an Edit project dialog (name, icon, ONES projects, link to full settings):
   `components/sidebar/ProjectFolderMenu.tsx`, mounted in `SidebarProjectFolderHeader.tsx`
   (`onOpenSettings` passed from `Sidebar.tsx`).
@@ -123,6 +122,9 @@ Features:
   `apps/web/src/components/settings/{ProviderSettingsPanel,settingsSearch}.ts(x)`,
   `packages/shared/src/serverSettings.ts` (replaces `globalMemory.modelSelection` whole); UI in
   `GlobalMemorySettings.tsx`.
+- Citation comment popover: clicking away or moving focus out acts like Cancel (draft discarded, a
+  just-cited chip removed); upstream saves the draft. `assistantCitationCommentDismissal.ts` (one
+  line) and the `onOpenChange` block in `AssistantCitationChip.tsx`, both marked `t4code`.
 - Terminal font picker: already upstream (`TypographySettings.tsx`, `FontFamilyPicker.tsx`).
 
 ## Desktop dev
