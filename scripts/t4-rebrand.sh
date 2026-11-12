@@ -31,3 +31,6 @@ rewrite 's#\$HOME/\.t3\b#$HOME/.t4#g; s#~/\.t3\b#~/.t4#g; s#, "\.t3"([,)])#, ".t
   apps/server/scripts/t3-sqlite-state.ts \
   packages/ssh/src/tunnel.ts \
   scripts/dev-runner.ts
+
+# Installer file name.
+rewrite 's/artifactName: "T3-Code-/artifactName: "T4-Code-/' 'artifactName: "T3-Code-' scripts/build-desktop-artifact.ts

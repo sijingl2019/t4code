@@ -50,7 +50,8 @@ product name "T4 Code"):
 `apps/desktop/package.json`, `apps/desktop/scripts/electron-launcher.mjs`,
 `apps/desktop/src/app/{DesktopEnvironment,DesktopStatePaths,DesktopUserData}.ts`,
 `apps/desktop/src/electron/ElectronProtocol.ts`, `apps/server/src/{os-jank,httpCors}.ts`,
-`packages/shared/src/{codexAuthHandoff,providerAuthReturnUrl}.ts`, `scripts/build-desktop-artifact.ts`.
+`packages/shared/src/{codexAuthHandoff,providerAuthReturnUrl}.ts`, `scripts/build-desktop-artifact.ts`
+(also raises `WINDOWS_PACKAGED_PAYLOAD_FILE_LIMIT` from 80 to 100: the current payload is 89 files).
 
 Branding (T4 Code name, `~/.t4` home including dev default and remote SSH/WSL runtimes): applied by
 `scripts/t4-rebrand.sh`, a sed pass over upstream text that `sync-upstream.sh` re-runs after every
@@ -86,3 +87,12 @@ Features:
 Endpoints are the ones verified against the real private deployment in `e:/workspace/kika`
 (`docs/ones-api-notes.md` there). `apps/server/src/issues/OnesClient.ts` is a direct port; do not switch
 to unverified endpoints (e.g. `project_in` filters) without probing the server first.
+
+## Packaging (Windows)
+
+`pnpm dist:desktop:win:x64` writes `release/T4-Code-<version>-x64.exe`. On this machine it needs the
+MSVC Spectre libraries (VS Build Tools component `VC.Runtimes.x86.x64.Spectre`), the npmmirror binary
+mirrors (`ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/`,
+`ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`), and `TEMP`/`TMP`/`TMPDIR` pointed at a
+directory with no `node_modules` above it (e.g. `E:\tmp\t4build`), because `C:\Users\linsj\node_modules`
+makes the sidecar self-containment check refuse. Local builds have no update feed.
