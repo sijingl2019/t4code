@@ -104,4 +104,45 @@ describe("ONES issues", () => {
     // Only the default asks ONES to drop the done category.
     expect(queries.map((q) => q.includes("statusCategory_notIn"))).toEqual([true, false, false]);
   });
+
+  it("reads uploaded files from task messages and downloads them via the presigned URL", async () => {
+    const fakeFetch = (async (url: string) => {
+      if (url.endsWith("/auth/login")) {
+        return Response.json({ user: { token: "t", uuid: "me" }, teams: [{ uuid: "T" }] });
+      }
+      if (url.endsWith("/task/u1/info")) {
+        return Response.json({ uuid: "u1", number: 7, summary: "S", desc: "", desc_rich: "" });
+      }
+      if (url.endsWith("/task/u1/messages")) {
+        return Response.json({
+          messages: [
+            {
+              type: "discussion",
+              send_time: 1,
+              text: "",
+              resource: { uuid: "r1", name: "report.md", mime: "text/markdown" },
+            },
+          ],
+          count: 1,
+          has_next: false,
+        });
+      }
+      if (url.endsWith("/res/attachment/r1")) {
+        return Response.json({ uuid: "r1", url: "https://s3.example/report?sig=1" });
+      }
+      if (url === "https://s3.example/report?sig=1") {
+        return new Response("# report", { headers: { "content-type": "text/markdown" } });
+      }
+      return new Response("", { status: 404 });
+    }) as typeof fetch;
+    const client = new OnesClient(
+      { baseUrl: "https://ones.example", teamUuid: "", email: "a@b", password: "x" },
+      fakeFetch,
+    );
+    const issue = await client.loadIssue("u1");
+    expect(issue.attachments.map((a) => a.name)).toEqual(["report.md"]);
+    const file = await client.download(issue.attachments[0]!.url);
+    expect(new TextDecoder().decode(file.bytes)).toBe("# report");
+    expect(file.mimeType).toBe("text/markdown");
+  });
 });

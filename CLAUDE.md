@@ -121,7 +121,9 @@ Endpoints are the ones verified against the real private deployment in `e:/works
 (`docs/ones-api-notes.md` there). `apps/server/src/issues/OnesClient.ts` is a direct port; do not switch
 to unverified endpoints (e.g. `project_in` filters) without probing the server first. Verified here
 since: graphql `projects { uuid name }`, task fields `project{uuid} descriptionText serverUpdateStamp`,
-and `GET .../team/{team}/task_statuses`.
+`GET .../team/{team}/task_statuses`, `GET .../task/{uuid}/messages` (`{ messages: [...] }`, uploads are
+`discussion` messages with a `resource`), and `GET .../res/attachment/{uuid}` (JSON metadata whose
+presigned `url` serves the bytes).
 
 ## Packaging (Windows)
 

@@ -100,7 +100,13 @@ export abstract class IssueTrackerClient {
   }
 
   /** Auth headers go only to the tracker's origin; presigned URLs on other hosts get none. */
-  async download(url: string): Promise<{ bytes: Uint8Array; mimeType: string }> {
+  /** Turns an attachment reference into the URL that serves its bytes; identity by default. */
+  protected async resolveDownloadUrl(url: string): Promise<string> {
+    return url;
+  }
+
+  async download(reference: string): Promise<{ bytes: Uint8Array; mimeType: string }> {
+    const url = await this.resolveDownloadUrl(reference);
     const sameOrigin = new URL(url).origin === new URL(this.baseUrl).origin;
     if (sameOrigin) await this.ensureLogin();
     const res = await this.fetchTimed(url, { headers: sameOrigin ? this.authHeaders() : {} });

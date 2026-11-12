@@ -108,6 +108,19 @@ export class OnesClient extends IssueTrackerClient {
     return (r?.data?.projects ?? []).map((p: J) => ({ id: String(p.uuid), name: String(p.name) }));
   }
 
+  /**
+   * Verified: GET `.../res/attachment/{uuid}` returns the file's metadata as JSON, with a
+   * presigned `url` (valid one hour) that serves the bytes.
+   */
+  protected override async resolveDownloadUrl(url: string): Promise<string> {
+    if (!/\/res\/attachment\/[^/?]+$/.test(url)) return url;
+    const meta: J = await this.requestJson("GET", url);
+    if (typeof meta?.url !== "string") {
+      throw new IssueTrackerClientError(`ONES attachment has no download URL: ${url}`);
+    }
+    return meta.url;
+  }
+
   /** Verified: GET `/task_statuses`. */
   async listStatuses(): Promise<IssueTrackerStatus[]> {
     const r = await this.api("GET", "/task_statuses");
@@ -158,7 +171,8 @@ export class OnesClient extends IssueTrackerClient {
   async loadIssue(uuid: string, status = ""): Promise<Issue> {
     const d = await this.api("GET", `/task/${uuid}/info`);
     const m = await this.api("GET", `/task/${uuid}/messages`);
-    const discussions: J[] = (m?.messages?.messages ?? [])
+    // Verified shape: `{ messages: [...], count, has_next }`.
+    const discussions: J[] = (Array.isArray(m?.messages) ? m.messages : [])
       .filter((x: J) => x.type === "discussion")
       .toSorted((a: J, b: J) => a.send_time - b.send_time);
     const attachments = extractImages(d.desc_rich ?? "");
@@ -166,7 +180,6 @@ export class OnesClient extends IssueTrackerClient {
       if (x.resource) {
         attachments.push({
           name: x.resource.name,
-          // Unverified URL shape (no sample task had attachments in kika's probe).
           url: `${this.baseUrl}/project/api/project/team/${this.team}/res/attachment/${x.resource.uuid}`,
           isImage: String(x.resource.mime ?? "").startsWith("image/"),
         });
