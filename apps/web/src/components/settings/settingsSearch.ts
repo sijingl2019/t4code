@@ -336,7 +336,9 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "window-background",
     title: "Window background image",
     to: "/settings/appearance",
-    searchTerms: ["wallpaper background picture image opacity transparency"],
+    searchTerms: [
+      "wallpaper background picture image opacity transparency blur frosted glass 毛玻璃",
+    ],
   },
   {
     id: "diff-color-scheme",

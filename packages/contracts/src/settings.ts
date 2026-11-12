@@ -155,6 +155,16 @@ export const WindowBackgroundOpacity = Schema.Int.check(
   }),
 );
 export type WindowBackgroundOpacity = typeof WindowBackgroundOpacity.Type;
+/** Blur radius (px) of the window background image, for a frosted-glass look. */
+export const MIN_WINDOW_BACKGROUND_BLUR = 0;
+export const MAX_WINDOW_BACKGROUND_BLUR = 40;
+export const WindowBackgroundBlur = Schema.Int.check(
+  Schema.isBetween({
+    minimum: MIN_WINDOW_BACKGROUND_BLUR,
+    maximum: MAX_WINDOW_BACKGROUND_BLUR,
+  }),
+);
+export type WindowBackgroundBlur = typeof WindowBackgroundBlur.Type;
 const DEFAULT_GLASS_OPACITY: GlassOpacity = 80;
 
 export const MIN_APPEARANCE_CONTRAST = 50;
@@ -485,6 +495,7 @@ export const ClientSettingsSchema = Schema.Struct({
   windowBackgroundOpacity: WindowBackgroundOpacity.pipe(
     Schema.withDecodingDefault(Effect.succeed(15)),
   ),
+  windowBackgroundBlur: WindowBackgroundBlur.pipe(Schema.withDecodingDefault(Effect.succeed(0))),
   fontSizeInterface: InterfaceFontSize.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_INTERFACE_FONT_SIZE)),
   ),
@@ -2123,6 +2134,7 @@ export const ClientSettingsPatch = Schema.Struct({
   fontSizeTerminal: Schema.optionalKey(TerminalFontSize),
   windowBackgroundImage: Schema.optionalKey(Schema.String),
   windowBackgroundOpacity: Schema.optionalKey(WindowBackgroundOpacity),
+  windowBackgroundBlur: Schema.optionalKey(WindowBackgroundBlur),
   fontFamilyCode: Schema.optionalKey(FontFamilyPreference),
   fontFamilyComposer: Schema.optionalKey(FontFamilyPreference),
   fontFamilySans: Schema.optionalKey(FontFamilyPreference),

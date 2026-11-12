@@ -462,7 +462,8 @@ export function useSettingsRestore(onRestored?: () => void) {
       : []),
     ...(settings.glassOpacity !== DEFAULT_UNIFIED_SETTINGS.glassOpacity ? ["Glass opacity"] : []),
     ...(settings.windowBackgroundImage !== DEFAULT_UNIFIED_SETTINGS.windowBackgroundImage ||
-    settings.windowBackgroundOpacity !== DEFAULT_UNIFIED_SETTINGS.windowBackgroundOpacity
+    settings.windowBackgroundOpacity !== DEFAULT_UNIFIED_SETTINGS.windowBackgroundOpacity ||
+    settings.windowBackgroundBlur !== DEFAULT_UNIFIED_SETTINGS.windowBackgroundBlur
       ? ["Window background"]
       : []),
     ...(settings.diffColorScheme !== DEFAULT_UNIFIED_SETTINGS.diffColorScheme
@@ -673,6 +674,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       glassOpacity: DEFAULT_UNIFIED_SETTINGS.glassOpacity,
       windowBackgroundImage: DEFAULT_UNIFIED_SETTINGS.windowBackgroundImage,
       windowBackgroundOpacity: DEFAULT_UNIFIED_SETTINGS.windowBackgroundOpacity,
+      windowBackgroundBlur: DEFAULT_UNIFIED_SETTINGS.windowBackgroundBlur,
       panelAnimationDurationMs: DEFAULT_UNIFIED_SETTINGS.panelAnimationDurationMs,
       sidebarProjectGroupingMode: DEFAULT_UNIFIED_SETTINGS.sidebarProjectGroupingMode,
       sidebarProjectSortOrder: DEFAULT_UNIFIED_SETTINGS.sidebarProjectSortOrder,

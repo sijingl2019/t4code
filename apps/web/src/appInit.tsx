@@ -70,7 +70,7 @@ import { resolveActiveThreadRouteRef, resolveThreadRouteTarget } from "./threadR
  * Blending (screen on dark, multiply on light) tints the surfaces but leaves
  * near-white / near-black text untouched, so the overlay does not wash text out.
  */
-function applyWindowBackground(image: string, opacityPercent: number): void {
+function applyWindowBackground(image: string, opacityPercent: number, blurPx: number): void {
   const id = "t4-window-background";
   let layer = document.getElementById(id);
   if (image === "") {
@@ -95,6 +95,9 @@ function applyWindowBackground(image: string, opacityPercent: number): void {
   }
   layer.style.backgroundImage = `url("${image}")`;
   layer.style.opacity = String(opacityPercent / 100);
+  // Blur fades the image edges; overscan by twice the radius so the fade sits off-screen.
+  layer.style.inset = `${-2 * blurPx}px`;
+  layer.style.filter = blurPx > 0 ? `blur(${blurPx}px)` : "";
 }
 
 /** Writes appearance settings onto the document, touching only the groups that changed. */
@@ -132,9 +135,14 @@ function startClientAppearance(): void {
     }
     if (
       previous?.windowBackgroundImage !== settings.windowBackgroundImage ||
-      previous.windowBackgroundOpacity !== settings.windowBackgroundOpacity
+      previous.windowBackgroundOpacity !== settings.windowBackgroundOpacity ||
+      previous.windowBackgroundBlur !== settings.windowBackgroundBlur
     ) {
-      applyWindowBackground(settings.windowBackgroundImage, settings.windowBackgroundOpacity);
+      applyWindowBackground(
+        settings.windowBackgroundImage,
+        settings.windowBackgroundOpacity,
+        settings.windowBackgroundBlur,
+      );
     }
     if (
       previous?.fontFamilySans !== settings.fontFamilySans ||

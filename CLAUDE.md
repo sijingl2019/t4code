@@ -70,8 +70,8 @@ from T3 to T4 by hand; on an icon conflict keep ours (`git checkout --ours`).
 
 Features:
 
-- Window background image + opacity: client settings `windowBackgroundImage` /
-  `windowBackgroundOpacity` (`packages/contracts/src/settings.ts`), overlay in
+- Window background image + opacity + blur: client settings `windowBackgroundImage` /
+  `windowBackgroundOpacity` / `windowBackgroundBlur` (frosted glass, `filter: blur` on the image) (`packages/contracts/src/settings.ts`), overlay in
   `apps/web/src/appInit.tsx`, UI in `AppearanceSettingsPanel.tsx`, reset/search entries in
   `SettingsPanels.tsx` / `settingsSearch.ts`.
 - Sidebar grouped by project with an always-visible new-thread button on the project row:

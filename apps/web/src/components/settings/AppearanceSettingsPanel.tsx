@@ -8,10 +8,12 @@ import {
   type EnvironmentIdentificationMode,
   MAX_APPEARANCE_CONTRAST,
   MAX_GLASS_OPACITY,
+  MAX_WINDOW_BACKGROUND_BLUR,
   MAX_WINDOW_BACKGROUND_OPACITY,
   MAX_PANEL_ANIMATION_DURATION_MS,
   MIN_APPEARANCE_CONTRAST,
   MIN_GLASS_OPACITY,
+  MIN_WINDOW_BACKGROUND_BLUR,
   MIN_WINDOW_BACKGROUND_OPACITY,
   MIN_PANEL_ANIMATION_DURATION_MS,
 } from "@t3tools/contracts/settings";
@@ -140,6 +142,13 @@ export function AppearanceSettingsPanel() {
   const windowBackgroundSliderStyle = {
     "--settings-slider-progress": `${windowBackgroundRatio * 100}%`,
     "--settings-slider-fill-offset": `${0.5 - windowBackgroundRatio}rem`,
+  } as CSSProperties;
+  const windowBackgroundBlurRatio =
+    (settings.windowBackgroundBlur - MIN_WINDOW_BACKGROUND_BLUR) /
+    (MAX_WINDOW_BACKGROUND_BLUR - MIN_WINDOW_BACKGROUND_BLUR);
+  const windowBackgroundBlurSliderStyle = {
+    "--settings-slider-progress": `${windowBackgroundBlurRatio * 100}%`,
+    "--settings-slider-fill-offset": `${0.5 - windowBackgroundBlurRatio}rem`,
   } as CSSProperties;
   const appearanceContrastRatio =
     (settings.appearanceContrast - MIN_APPEARANCE_CONTRAST) /
@@ -273,7 +282,7 @@ export function AppearanceSettingsPanel() {
 
         <SettingsRow
           {...searchableSetting("window-background")}
-          description="Show an image across the whole window. Lower opacity keeps text readable."
+          description="Show an image across the whole window. Lower opacity keeps text readable; blur gives it a frosted-glass look."
           resetAction={
             settings.windowBackgroundImage !== DEFAULT_UNIFIED_SETTINGS.windowBackgroundImage ? (
               <SettingResetButton
@@ -282,6 +291,7 @@ export function AppearanceSettingsPanel() {
                   updateSettings({
                     windowBackgroundImage: DEFAULT_UNIFIED_SETTINGS.windowBackgroundImage,
                     windowBackgroundOpacity: DEFAULT_UNIFIED_SETTINGS.windowBackgroundOpacity,
+                    windowBackgroundBlur: DEFAULT_UNIFIED_SETTINGS.windowBackgroundBlur,
                   })
                 }
               />
@@ -359,6 +369,32 @@ export function AppearanceSettingsPanel() {
                   style={windowBackgroundSliderStyle}
                   type="range"
                   value={settings.windowBackgroundOpacity}
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <output
+                  className="min-w-12 rounded-md bg-muted px-2 py-1 text-center font-mono text-xs font-medium tabular-nums text-foreground"
+                  htmlFor="window-background-blur"
+                >
+                  {settings.windowBackgroundBlur}px
+                </output>
+                <input
+                  aria-label="Window background blur"
+                  className="settings-slider min-w-0 flex-1"
+                  disabled={settings.windowBackgroundImage === ""}
+                  id="window-background-blur"
+                  max={MAX_WINDOW_BACKGROUND_BLUR}
+                  min={MIN_WINDOW_BACKGROUND_BLUR}
+                  onChange={(event) => {
+                    const windowBackgroundBlur = Number(event.currentTarget.value);
+                    if (Number.isInteger(windowBackgroundBlur)) {
+                      updateSettings({ windowBackgroundBlur });
+                    }
+                  }}
+                  step={1}
+                  style={windowBackgroundBlurSliderStyle}
+                  type="range"
+                  value={settings.windowBackgroundBlur}
                 />
               </div>
             </div>
