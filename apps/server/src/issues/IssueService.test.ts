@@ -1,9 +1,9 @@
 import { hasAutoDevMarker, type Issue } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { autoDevPollDue, buildIssuePrompt } from "./IssueService.ts";
+import { autoDevIssueUuid, autoDevPollDue, buildIssuePrompt } from "./IssueService.ts";
 import { issueCommitMessage, parseIssuePrompt } from "./issueCommitMessage.ts";
-import { extractImages, OnesClient } from "./OnesClient.ts";
+import { extractImages, OnesClient, textToOnesHtml } from "./OnesClient.ts";
 
 const issue: Issue = {
   uuid: "u1",
@@ -32,6 +32,19 @@ describe("ONES issues", () => {
     expect(hasAutoDevMarker("\n  #!t4code")).toBe(true);
     expect(hasAutoDevMarker("please #!t4code")).toBe(false);
     expect(hasAutoDevMarker("")).toBe(false);
+  });
+
+  it("recognises auto-dev threads by their first message id", () => {
+    expect(autoDevIssueUuid("ones-auto-message:6wpqXE1b")).toBe("6wpqXE1b");
+    expect(autoDevIssueUuid("ones-auto-message:")).toBeNull();
+    expect(autoDevIssueUuid("msg-123")).toBeNull();
+    expect(autoDevIssueUuid(undefined)).toBeNull();
+  });
+
+  it("posts summaries as literal text in ONES comment HTML", () => {
+    expect(textToOnesHtml("**done** <b>\r\n\n- a & b")).toBe(
+      "<p>**done** &lt;b&gt;</p><p><br></p><p>- a &amp; b</p>",
+    );
   });
 
   it("builds an auto prompt without the marker and with the no-commit rule", () => {

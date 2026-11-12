@@ -89,7 +89,9 @@ Features:
   description starts with `#!t4code` (`ISSUE_AUTO_DEV_MARKER`). While it is on, the Commit button's
   message for a thread started from an issue becomes `ONES-123 <title>` + description body (a typed
   message gets the key prepended): `apps/server/src/issues/issueCommitMessage.ts`, hooked into
-  `runStackedAction` in upstream `apps/server/src/git/GitManager.ts` (two lines marked `t4code`). RPCs `issues.*` in
+  `runStackedAction` in upstream `apps/server/src/git/GitManager.ts` (two lines marked `t4code`).
+  Each `completed` run of an auto-dev thread (first message id `ones-auto-message:<uuid>`) posts its
+  last assistant message verbatim as an issue comment (`commentRunSummary` in `IssueService.ts`). RPCs `issues.*` in
   `packages/contracts/src/{issues,rpc}.ts`, scopes in `apps/server/src/auth/RpcAuthorization.ts`,
   handlers in `apps/server/src/ws.ts`, layer in
   `apps/server/src/orchestration-v2/runtimeLayer.ts`, secrets in `apps/server/src/settingsSecrets.ts`, span aggregates in `apps/server/src/observability/RpcInstrumentation.ts`, mock layer in `apps/server/src/ws.test.ts`.
@@ -135,7 +137,7 @@ Endpoints are the ones verified against the real private deployment in `e:/works
 (`docs/ones-api-notes.md` there). `apps/server/src/issues/OnesClient.ts` is a direct port; do not switch
 to unverified endpoints (e.g. `project_in` filters) without probing the server first. Verified here
 since: graphql `projects { uuid name }`, task fields `project{uuid} descriptionText serverUpdateStamp`,
-`GET .../team/{team}/task_statuses`, `GET .../task/{uuid}/messages` (`{ messages: [...] }`, uploads are
+`GET .../team/{team}/task_statuses`, `POST .../task/{uuid}/send_message` (`{ uuid: <8 random chars>, content_type: 1, text: <html> }`), `GET .../task/{uuid}/messages` (`{ messages: [...] }`, uploads are
 `discussion` messages with a `resource`), and `GET .../res/attachment/{uuid}` (JSON metadata whose
 presigned `url` serves the bytes).
 

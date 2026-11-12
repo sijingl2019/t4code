@@ -50,6 +50,8 @@ export abstract class IssueTrackerClient {
   abstract listMyIssues(filter: IssueStatusFilter): Promise<Issue[]>;
   /** One issue with comments and attachments. */
   abstract loadIssue(id: string, status?: string): Promise<Issue>;
+  /** Posts `text` verbatim (no markup interpretation) as a comment on the issue. */
+  abstract addComment(id: string, text: string): Promise<void>;
 
   async testConnection(): Promise<string> {
     this.loggedIn = false;

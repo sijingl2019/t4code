@@ -19,6 +19,7 @@ import {
   type IssueGetResult,
   type IssueTrackerCatalog,
   type IssueTestConnectionResult,
+  type OrchestrationV2DomainEvent,
   type Project,
   type ServerSettings,
 } from "@t3tools/contracts";
@@ -29,11 +30,15 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Stream from "effect/Stream";
 
 import * as ServerConfig from "../config.ts";
+import * as Orchestrator from "../orchestration-v2/Orchestrator.ts";
+import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
 import * as ThreadLaunchService from "../orchestration-v2/ThreadLaunchService.ts";
 import * as ProjectService from "../project/ProjectService.ts";
 import * as Scheduler from "../scheduling/Scheduler.ts";
+import { forkParked } from "../serverActivation.ts";
 import * as ServerSettingsModule from "../serverSettings.ts";
 import { issueTrackerFor } from "./issueTrackers.ts";
 import type { IssueTrackerClient } from "./IssueTrackerClient.ts";
@@ -110,6 +115,14 @@ export const autoDevPollDue = (
   now: number,
 ) => last === null || last.key !== key || now - last.at >= intervalMinutes * 60_000;
 
+const AUTO_MESSAGE_PREFIX = "ones-auto-message:";
+
+/** The issue an auto-dev thread was launched for, read from its first message id. */
+export const autoDevIssueUuid = (firstMessageId: string | undefined): string | null =>
+  firstMessageId?.startsWith(AUTO_MESSAGE_PREFIX) === true
+    ? firstMessageId.slice(AUTO_MESSAGE_PREFIX.length) || null
+    : null;
+
 const safeFileName = (name: string) =>
   name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").slice(0, 120);
 
@@ -122,6 +135,8 @@ export const layer = Layer.effect(
     const threadLaunch = yield* ThreadLaunchService.ThreadLaunchService;
     const scheduler = yield* Scheduler.Scheduler;
     const platform = yield* HostProcess.Platform;
+    const orchestrator = yield* Orchestrator.OrchestratorV2;
+    const projections = yield* ProjectionStore.ProjectionStoreV2;
 
     // One client per connection so its login token is reused.
     let client: { key: string; value: IssueTrackerClient } | null = null;
@@ -303,7 +318,7 @@ export const layer = Layer.effect(
               ? { type: "worktree", baseRef: "HEAD" }
               : { type: "root" },
           initialMessage: {
-            messageId: MessageId.make(`ones-auto-message:${issue.uuid}`),
+            messageId: MessageId.make(`${AUTO_MESSAGE_PREFIX}${issue.uuid}`),
             text: buildIssuePrompt(issue, { auto: true, attachmentPaths }),
             attachments: [],
           },
@@ -358,6 +373,46 @@ export const layer = Layer.effect(
     });
 
     yield* scheduler.register("ones-auto-dev", pollAutoDev);
+
+    // A run can report "completed" more than once; post each run's summary once per process.
+    const commented = new Set<string>();
+    const commentRunSummary = Effect.fn("IssueService.commentRunSummary")(
+      function* (event: OrchestrationV2DomainEvent) {
+        if (event.type !== "run.updated") return;
+        const run = event.payload;
+        if (run.status !== "completed" || run.delegatedTaskId !== undefined) return;
+        if (commented.has(run.id)) return;
+        const settings = yield* readSettings;
+        if (!settings.issueAutoDev.enabled) return;
+        const { runs } = yield* projections.getThreadRecords(event.threadId, ["runs"]);
+        const firstRun = runs.reduce<(typeof runs)[number] | undefined>(
+          (first, r) => (first === undefined || r.ordinal < first.ordinal ? r : first),
+          undefined,
+        );
+        const issueUuid = autoDevIssueUuid(firstRun?.userMessageId);
+        if (issueUuid === null) return;
+        const { messages } = yield* projections.getThreadRecords(event.threadId, ["messages"], {
+          messageRoles: ["assistant"],
+          messageRunIds: [run.id],
+        });
+        const summary = messages.findLast((m) => !m.streaming)?.text.trim() ?? "";
+        if (summary === "") return;
+        commented.add(run.id);
+        yield* Effect.tryPromise({
+          try: () => clientFor(settings).addComment(issueUuid, summary),
+          catch: fail,
+        }).pipe(Effect.onError(() => Effect.sync(() => commented.delete(run.id))));
+        yield* Effect.logInfo("ONES auto-dev summary posted", { issueUuid, runId: run.id });
+      },
+      Effect.catchCause((cause) => Effect.logWarning("ONES auto-dev comment failed", { cause })),
+    );
+    yield* forkParked(
+      Stream.runForEach(orchestrator.streamDomainEvents, commentRunSummary).pipe(
+        Effect.catchCause((cause) =>
+          Effect.logWarning("ONES auto-dev event stream failed", { cause }),
+        ),
+      ),
+    );
 
     return IssueService.of({ list, get, testConnection, catalog });
   }),

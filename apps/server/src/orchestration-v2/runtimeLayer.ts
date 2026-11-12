@@ -394,7 +394,14 @@ export const layerProduction = Layer.mergeAll(
   layerThreadLaunchProvided,
   layerScheduledTaskProvided,
   IssueService.layer.pipe(
-    Layer.provide(Layer.merge(layerThreadLaunchProvided, layerProjectService)),
+    Layer.provide(
+      Layer.mergeAll(
+        layerThreadLaunchProvided,
+        layerProjectService,
+        layerOrchestratorProvided,
+        ProjectionStore.layer,
+      ),
+    ),
   ),
   MemoryService.layer.pipe(
     Layer.provide(

@@ -46,6 +46,25 @@ export function extractImages(html: string): IssueAttachmentRef[] {
   return out;
 }
 
+/** ONES comments are HTML; this shows `text` as written, one paragraph per line. */
+export function textToOnesHtml(text: string): string {
+  return text
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => {
+      const escaped = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      return escaped === "" ? "<p><br></p>" : `<p>${escaped}</p>`;
+    })
+    .join("");
+}
+
+const MESSAGE_ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const messageId = () =>
+  Array.from(
+    crypto.getRandomValues(new Uint8Array(8)),
+    (b) => MESSAGE_ID_ALPHABET[b % MESSAGE_ID_ALPHABET.length],
+  ).join("");
+
 export class OnesClient extends IssueTrackerClient {
   private token = "";
   private userUuid = "";
@@ -166,6 +185,15 @@ export class OnesClient extends IssueTrackerClient {
       comments: [],
       attachments: [],
     }));
+  }
+
+  /** Verified: POST `/task/{uuid}/send_message` with a client-made 8-char message uuid. */
+  async addComment(uuid: string, text: string): Promise<void> {
+    await this.api("POST", `/task/${uuid}/send_message`, {
+      uuid: messageId(),
+      content_type: 1,
+      text: textToOnesHtml(text),
+    });
   }
 
   async loadIssue(uuid: string, status = ""): Promise<Issue> {
