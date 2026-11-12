@@ -40,3 +40,13 @@
     ${EndIf}
   !endif
 !macroend
+
+; t4code: electron-builder never keeps shortcuts on a manual install when the directory is
+; choosable, so the old uninstaller unpins the taskbar icon. The directory page is already built
+; by this point; undefining here re-enables keep-shortcuts, which still requires the same install
+; dir (`$appExe` must exist), so picking a new folder recreates shortcuts as before.
+!macro customHeader
+  !ifdef allowToChangeInstallationDirectory
+    !undef allowToChangeInstallationDirectory
+  !endif
+!macroend
