@@ -83,17 +83,26 @@ Features:
   the base class. A binding (`issueProjectBindings`) ties a tracker project id to a T4 project's
   workspace root; one tracker project may have several. `ones.statusFilter` (default / include /
   exclude by status id) narrows which assigned issues are listed; `issues.catalog` returns the
-  tracker's projects and statuses for the settings UI. RPCs `issues.*` in
+  tracker's projects and statuses for the settings UI. Auto development picks up issues whose
+  description starts with `#!t4code` (`ISSUE_AUTO_DEV_MARKER`). While it is on, the Commit button's
+  message for a thread started from an issue becomes `ONES-123 <title>` + description body (a typed
+  message gets the key prepended): `apps/server/src/issues/issueCommitMessage.ts`, hooked into
+  `runStackedAction` in upstream `apps/server/src/git/GitManager.ts` (two lines marked `t4code`). RPCs `issues.*` in
   `packages/contracts/src/{issues,rpc}.ts`, scopes in `apps/server/src/auth/RpcAuthorization.ts`,
   handlers in `apps/server/src/ws.ts`, layer in
   `apps/server/src/orchestration-v2/runtimeLayer.ts`, secrets in `apps/server/src/settingsSecrets.ts`, span aggregates in `apps/server/src/observability/RpcInstrumentation.ts`, mock layer in `apps/server/src/ws.test.ts`.
   Client: commands in `packages/client-runtime/src/state/server.ts`, guarded scopes in
   `packages/contracts/src/clientRpcPermissions.ts`, settings form `OnesIssueSettings.tsx` (mounted in
   `ProjectsSettings.tsx`, shown when no project is selected; lists tracker projects with a T4 project
-  multi-picker), "Link ONES project" row in the palette's New project flow
-  (`apps/web/src/issues/NewProjectOnesOption.tsx`, wired via `onCreated` in `hooks/useNewProject.ts`), issue picker `components/sidebar/OnesIssuePickerDialog.tsx` (opened from
+  multi-picker), "Link ONES project" dialog as the last step of the palette's Add/New project flows
+  (`apps/web/src/issues/OnesProjectLinks.tsx`, host mounted in `CommandPalette.tsx`, requested after
+  `createProject` / via `onCreated` in `hooks/useNewProject.ts`), issue picker `components/sidebar/OnesIssuePickerDialog.tsx` (opened from
   `SidebarProjectFolderHeader.tsx`), attachments handed to the composer via
   `apps/web/src/issues/pendingIssueFiles.ts` (consumed in `ChatComposer.tsx`).
+- Sidebar project folder "…" menu (Pin / Edit / Open in File Explorer / Archive / Remove) in place of
+  the collapse chevron, with an Edit project dialog (name, icon, ONES projects, link to full settings):
+  `components/sidebar/ProjectFolderMenu.tsx`, mounted in `SidebarProjectFolderHeader.tsx`
+  (`onOpenSettings` passed from `Sidebar.tsx`).
 - Tray icon (Windows/Linux) with Show App / Settings / Quit; closing the main window hides it to the
   tray instead of quitting: `apps/desktop/src/window/DesktopTray.ts`, created in
   `DesktopApplicationMenu.ts` `configure`, hide-on-close in `DesktopWindow.ts`'s `close` handler.

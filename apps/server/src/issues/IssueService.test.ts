@@ -1,7 +1,8 @@
 import { hasAutoDevMarker, type Issue } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { buildIssuePrompt } from "./IssueService.ts";
+import { autoDevPollDue, buildIssuePrompt } from "./IssueService.ts";
+import { issueCommitMessage, parseIssuePrompt } from "./issueCommitMessage.ts";
 import { extractImages, OnesClient } from "./OnesClient.ts";
 
 const issue: Issue = {
@@ -9,7 +10,7 @@ const issue: Issue = {
   key: "ONES-7",
   number: 7,
   title: "Fix login",
-  descriptionText: "  #!auto\nLogin fails on Safari",
+  descriptionText: "  #!t4code\nLogin fails on Safari",
   status: "进行中",
   url: "https://ones.example/project/#/team/t/task/u1",
   trackerProjectId: "p1",
@@ -19,10 +20,17 @@ const issue: Issue = {
 };
 
 describe("ONES issues", () => {
-  it("detects the #!auto marker only at the start of the description", () => {
-    expect(hasAutoDevMarker("#!auto do it")).toBe(true);
-    expect(hasAutoDevMarker("\n  #!auto")).toBe(true);
-    expect(hasAutoDevMarker("please #!auto")).toBe(false);
+  it("polls auto-dev on the first tick, after a settings save, and once per interval", () => {
+    expect(autoDevPollDue(null, "a", 5, 0)).toBe(true);
+    expect(autoDevPollDue({ at: 0, key: "a" }, "a", 5, 60_000)).toBe(false);
+    expect(autoDevPollDue({ at: 0, key: "a" }, "b", 5, 60_000)).toBe(true);
+    expect(autoDevPollDue({ at: 0, key: "a" }, "a", 5, 300_000)).toBe(true);
+  });
+
+  it("detects the #!t4code marker only at the start of the description", () => {
+    expect(hasAutoDevMarker("#!t4code do it")).toBe(true);
+    expect(hasAutoDevMarker("\n  #!t4code")).toBe(true);
+    expect(hasAutoDevMarker("please #!t4code")).toBe(false);
     expect(hasAutoDevMarker("")).toBe(false);
   });
 
@@ -30,7 +38,7 @@ describe("ONES issues", () => {
     const prompt = buildIssuePrompt(issue, { auto: true, attachmentPaths: ["C:/a/1-shot.png"] });
     expect(prompt).toContain("[ONES-7] Fix login");
     expect(prompt).toContain("Login fails on Safari");
-    expect(prompt).not.toContain("#!auto");
+    expect(prompt).not.toContain("#!t4code");
     expect(prompt).toContain("git commit");
     expect(prompt).toContain("C:/a/1-shot.png");
     expect(prompt).toContain("Ann: repro on 17.2");
@@ -144,5 +152,20 @@ describe("ONES issues", () => {
     const file = await client.download(issue.attachments[0]!.url);
     expect(new TextDecoder().decode(file.bytes)).toBe("# report");
     expect(file.mimeType).toBe("text/markdown");
+  });
+
+  it("builds commit messages from the issue a thread was started from", () => {
+    const parsed = parseIssuePrompt(buildIssuePrompt(issue, { auto: true }));
+    expect(parsed).toEqual({
+      key: "ONES-7",
+      title: "Fix login",
+      description: "Login fails on Safari",
+    });
+    expect(issueCommitMessage(parsed!, undefined)).toBe(
+      "ONES-7 Fix login\n\nLogin fails on Safari",
+    );
+    expect(issueCommitMessage(parsed!, "fix cookie expiry")).toBe("ONES-7 fix cookie expiry");
+    expect(issueCommitMessage(parsed!, "ONES-7: done")).toBe("ONES-7: done");
+    expect(parseIssuePrompt("just a normal request")).toBeNull();
   });
 });

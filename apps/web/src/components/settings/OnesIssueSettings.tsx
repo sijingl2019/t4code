@@ -221,8 +221,10 @@ function OnesIssueForm() {
           <span className="text-xs text-muted-foreground">minutes</span>
         </div>
         <p className="-mt-2 text-xs text-muted-foreground">
-          Issues assigned to you whose description starts with <code>#!auto</code> start a thread
-          automatically using the project's default model. Agents are told not to commit.
+          Issues assigned to you whose description starts with <code>#!t4code</code> start a thread
+          automatically using the project's default model. Agents are told not to commit. While this
+          is on, commits from a thread started from an issue use the issue number and title as the
+          message, with the description as the body.
         </p>
 
         <div className="flex items-center justify-between gap-3">

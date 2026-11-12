@@ -3,7 +3,7 @@ import * as Schema from "effect/Schema";
 import { ProjectId, TrimmedNonEmptyString } from "./baseSchemas.ts";
 
 /** Marker at the start of an issue's plain-text description that opts it into auto development. */
-export const ISSUE_AUTO_DEV_MARKER = "#!auto";
+export const ISSUE_AUTO_DEV_MARKER = "#!t4code";
 
 export const IssueAttachmentRef = Schema.Struct({
   name: Schema.String,
@@ -92,7 +92,7 @@ export class IssueTrackerError extends Schema.TaggedError<IssueTrackerError>()(
   { message: Schema.String },
 ) {}
 
-/** True when the description opts into auto development (`#!auto` at its start). */
+/** True when the description opts into auto development (`#!t4code` at its start). */
 export function hasAutoDevMarker(descriptionText: string): boolean {
   return descriptionText.trimStart().startsWith(ISSUE_AUTO_DEV_MARKER);
 }

@@ -1,6 +1,6 @@
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
-import { ChevronDownIcon, SquarePenIcon, TicketIcon } from "lucide-react";
+import { SquarePenIcon, TicketIcon } from "lucide-react";
 import { memo, useState } from "react";
 
 import { cn } from "~/lib/utils";
@@ -11,6 +11,7 @@ import { ProjectFavicon } from "../ProjectFavicon";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { OnesIssuePickerDialog, useHasIssueBinding } from "./OnesIssuePickerDialog";
+import { ProjectFolderMenu } from "./ProjectFolderMenu";
 
 const FOLDER_DOT_CLASS_NAME = {
   attention: "bg-warning",
@@ -33,7 +34,7 @@ export function sidebarFolderRowId(projectKey: string) {
 
 /**
  * A project folder in the boring sidebar. It reads like a shelf header: a trailing
- * count and chevron, with the count and a status dot only while it is closed, so a
+ * count and a "…" menu, with the count and a status dot only while it is closed, so a
  * closed folder still says when a hidden thread needs you.
  */
 export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHeader(props: {
@@ -43,6 +44,7 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
   onToggle: (group: SidebarProjectSnapshot) => void;
   onNewThread: (group: SidebarProjectSnapshot) => void;
   onContextMenu: (group: SidebarProjectSnapshot, position: { x: number; y: number }) => void;
+  onOpenSettings: (group: SidebarProjectSnapshot) => void;
 }) {
   const { group, collapsed, hiddenThreads } = props;
   const rowId = sidebarFolderRowId(group.projectKey);
@@ -92,18 +94,11 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
             {hiddenThreads.length}
           </span>
         ) : null}
-        {/* Room for the always-visible new-thread button that sits over this slot. */}
-        <span aria-hidden className={cn("shrink-0", hasIssueBinding ? "w-12" : "w-6")} />
-        <ChevronDownIcon
-          aria-hidden
-          className={cn(
-            "size-3 shrink-0 text-sidebar-muted-foreground transition-transform",
-            collapsed && "-rotate-90",
-          )}
-        />
+        {/* Room for the always-visible buttons that sit over this slot. */}
+        <span aria-hidden className={cn("shrink-0", hasIssueBinding ? "w-18" : "w-12")} />
       </button>
-      {/* Always visible, on the same line as the project name, left of the chevron. */}
-      <span className="absolute inset-y-0 right-6 flex items-center">
+      {/* Always visible, on the same line as the project name. */}
+      <span className="absolute inset-y-0 right-1 flex items-center">
         {hasIssueBinding ? (
           <Tooltip>
             <TooltipTrigger
@@ -121,6 +116,7 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
             <TooltipPopup>New thread from a ONES issue</TooltipPopup>
           </Tooltip>
         ) : null}
+        <ProjectFolderMenu group={group} onOpenSettings={props.onOpenSettings} />
         <Tooltip>
           <TooltipTrigger
             render={

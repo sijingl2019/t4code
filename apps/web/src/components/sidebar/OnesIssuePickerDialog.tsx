@@ -5,6 +5,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { useEffect, useState } from "react";
 
 import { useNewThreadHandler } from "../../hooks/useHandleNewThread";
+import { comparablePath } from "../../issues/OnesProjectLinks";
 import { base64ToFile, usePendingIssueFiles } from "../../issues/pendingIssueFiles";
 import { environmentServerConfigsAtom, serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
@@ -134,9 +135,6 @@ export function OnesIssuePickerDialog(props: {
     </Dialog>
   );
 }
-
-const comparablePath = (path: string) =>
-  path.replaceAll("\\", "/").replace(/\/+/g, "/").replace(/\/$/, "").toLowerCase();
 
 /** Whether the environment's ONES settings bind a project to this workspace root. */
 export function useHasIssueBinding(environmentId: EnvironmentId, workspaceRoot: string): boolean {

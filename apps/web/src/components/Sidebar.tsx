@@ -3458,6 +3458,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                 onToggle={toggleProjectFolder}
                                 onNewThread={startThreadInProjectFolder}
                                 onContextMenu={handleProjectFolderContextMenu}
+                                onOpenSettings={openProjectSettings}
                               />,
                             );
                             for (const thread of folder.threads) {

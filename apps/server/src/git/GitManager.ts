@@ -78,6 +78,7 @@ import {
   repositoryConventionsTextGenerationPolicy,
 } from "../textGeneration/TextGenerationPresets.ts";
 import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
+import { resolveIssueCommitMessage } from "../issues/issueCommitMessage.ts";
 import * as ProjectStore from "../orchestration-v2/ProjectStore.ts";
 import * as ProjectSetupScriptRunner from "../project/ProjectSetupScriptRunner.ts";
 import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
@@ -3265,7 +3266,15 @@ export const make = Effect.gen(function* () {
         }
 
         let branchStep: { status: "created" | "skipped_not_requested"; name?: string };
-        let commitMessageForStep = input.commitMessage;
+        // t4code: commits from a tracker-issue thread carry the issue (issues/issueCommitMessage.ts).
+        const typedCommitMessage = wantsCommit
+          ? yield* resolveIssueCommitMessage(
+              { threads, settings: serverSettingsService },
+              input.threadId,
+              input.commitMessage,
+            )
+          : input.commitMessage;
+        let commitMessageForStep = typedCommitMessage;
         let preResolvedCommitSuggestion: CommitAndBranchSuggestion | undefined = undefined;
 
         const textGenerationSettings = yield* projectSettingsFor(input).pipe(
@@ -3310,7 +3319,7 @@ export const make = Effect.gen(function* () {
             textGenerationSettings,
             input.cwd,
             initialStatus.branch,
-            input.commitMessage,
+            typedCommitMessage,
             input.filePaths,
           );
           branchStep = result.branchStep;

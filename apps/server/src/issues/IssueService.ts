@@ -1,7 +1,7 @@
 // @effect-diagnostics nodeBuiltinImport:off
 /**
  * Issue tracker integration (adapters in issueTrackers.ts): listing tracker projects, listing/reading issues for bound T4 projects,
- * and the `#!auto` auto-development poller.
+ * and the `#!t4code` auto-development poller.
  */
 import * as NodeFSP from "node:fs/promises";
 import * as NodePath from "node:path";
@@ -23,6 +23,7 @@ import {
   type ServerSettings,
 } from "@t3tools/contracts";
 import * as HostProcess from "@t3tools/shared/HostProcess";
+import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -100,6 +101,14 @@ export function buildIssuePrompt(
   }
   return lines.join("\n");
 }
+
+/** Due once per interval, and on the next tick after the ONES or auto-dev settings change. */
+export const autoDevPollDue = (
+  last: { readonly at: number; readonly key: string } | null,
+  key: string,
+  intervalMinutes: number,
+  now: number,
+) => last === null || last.key !== key || now - last.at >= intervalMinutes * 60_000;
 
 const safeFileName = (name: string) =>
   name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").slice(0, 120);
@@ -236,7 +245,7 @@ export const layer = Layer.effect(
       Effect.withSpan("IssueService.catalog"),
     );
 
-    let lastPollAt = 0;
+    let lastPoll: { at: number; key: string } | null = null;
     // Launch is idempotent per commandId; this only saves the repeat round trips.
     const launched = new Set<string>();
 
@@ -266,7 +275,9 @@ export const layer = Layer.effect(
       project: Project,
       listed: Issue,
     ) {
-      const modelSelection = project.defaultModelSelection ?? settings.defaultModelSelection;
+      // Settings → Project defaults live in project overrides, not on the project row.
+      const modelSelection = resolveProjectSettings(settings, project.id, project).settings
+        .defaultModelSelection;
       if (modelSelection === null) {
         yield* Effect.logWarning("ONES auto-dev skipped: no default model for project", {
           project: project.title,
@@ -307,10 +318,23 @@ export const layer = Layer.effect(
     const pollAutoDev = Effect.gen(function* () {
       const settings = yield* readSettings;
       const { enabled, intervalMinutes } = settings.issueAutoDev;
-      if (!enabled || settings.issueProjectBindings.length === 0) return;
+      if (!enabled || settings.issueProjectBindings.length === 0) {
+        lastPoll = null;
+        return;
+      }
       const now = yield* Clock.currentTimeMillis;
-      if (now - lastPollAt < intervalMinutes * 60_000) return;
-      lastPollAt = now;
+      const { ones } = settings;
+      const key = [
+        ones.baseUrl,
+        ones.teamUuid,
+        ones.email,
+        ones.statusFilter.mode,
+        ...ones.statusFilter.statusIds,
+        intervalMinutes,
+        ...settings.issueProjectBindings.map((b) => `${b.onesProjectUuid}@${b.localPath}`),
+      ].join("|");
+      if (!autoDevPollDue(lastPoll, key, intervalMinutes, now)) return;
+      lastPoll = { at: now, key };
       const seen = new Set<string>();
       for (const binding of settings.issueProjectBindings) {
         const project = yield* projects
