@@ -17,6 +17,8 @@ import * as AgentSessionImporter from "../project/AgentSessionImporter.ts";
 import * as AgentSessionScanner from "../project/AgentSessionScanner.ts";
 import * as ProjectService from "../project/ProjectService.ts";
 import * as IssueService from "../issues/IssueService.ts";
+import * as MemoryService from "../memory/MemoryService.ts";
+import * as MemoryStore from "../memory/MemoryStore.ts";
 import * as ProjectSetupScriptRunner from "../project/ProjectSetupScriptRunner.ts";
 import * as ManagedProjectFolders from "../project/ManagedProjectFolders.ts";
 import * as ScratchThreadPromotion from "../project/ScratchThreadPromotion.ts";
@@ -393,6 +395,16 @@ export const layerProduction = Layer.mergeAll(
   layerScheduledTaskProvided,
   IssueService.layer.pipe(
     Layer.provide(Layer.merge(layerThreadLaunchProvided, layerProjectService)),
+  ),
+  MemoryService.layer.pipe(
+    Layer.provide(
+      Layer.mergeAll(
+        MemoryStore.layer,
+        layerOrchestratorProvided,
+        ProjectionStore.layer,
+        ProjectStore.layer,
+      ),
+    ),
   ),
   layerScratchThreadPromotionProvided,
   layerSecretRequestsProvided,

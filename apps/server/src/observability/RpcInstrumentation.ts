@@ -233,6 +233,8 @@ const RPC_AGGREGATES = {
   [WS_METHODS.issuesGet]: "issues",
   [WS_METHODS.issuesTestConnection]: "issues",
   [WS_METHODS.issuesSyncBindings]: "issues",
+  [WS_METHODS.memoryGetStats]: "memory",
+  [WS_METHODS.memoryClear]: "memory",
 } as const satisfies Readonly<Record<WsRpcMethod, string>>;
 
 const RPC_SPAN_PREFIX = "ws.rpc";

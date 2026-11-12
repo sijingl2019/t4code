@@ -83,6 +83,19 @@ Features:
   `SourceControlSettings.tsx`), issue picker `components/sidebar/OnesIssuePickerDialog.tsx` (opened from
   `SidebarProjectFolderHeader.tsx`), attachments handed to the composer via
   `apps/web/src/issues/pendingIssueFiles.ts` (consumed in `ChatComposer.tsx`).
+- Global memory (off by default): server setting `globalMemory`; `apps/server/src/memory/` listens to
+  `run.updated`, summarizes a thread every N turns or M minutes (first wins) through
+  `generateTranscriptionPostProcessing`, and stores memories in self-created `t4_memory_*` tables in
+  `statev2.sqlite` (deliberately outside `persistence/Migrations`, so upstream migration numbers never
+  collide). MCP tools `t4_memory_search` / `t4_memory_recent` in `apps/server/src/mcp/toolkits/memory/`.
+  Upstream files touched: `packages/contracts/src/{settings,rpc,clientRpcPermissions,index}.ts`,
+  `apps/server/src/{ws,ws.test}.ts`, `auth/RpcAuthorization.ts`, `observability/RpcInstrumentation.ts`,
+  `orchestration-v2/runtimeLayer.ts`, `mcp/McpHttpServer.ts`, `mcp/toolkits/toolSearch/tools.ts`
+  (one phrase), `provider/AgentContextBudget.test.ts`, `provider/agentContextBudget.json` (on conflict
+  take upstream, rerun the test and set the measured value), `packages/client-runtime/src/state/server.ts`,
+  `apps/web/src/components/settings/{ProviderSettingsPanel,settingsSearch}.ts(x)`,
+  `packages/shared/src/serverSettings.ts` (replaces `globalMemory.modelSelection` whole); UI in
+  `GlobalMemorySettings.tsx`.
 - Terminal font picker: already upstream (`TypographySettings.tsx`, `FontFamilyPicker.tsx`).
 
 ## ONES API

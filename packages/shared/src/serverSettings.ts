@@ -601,6 +601,16 @@ export function applyServerSettingsPatch(
     ...(patch.speechPostProcessingModelSelection !== undefined
       ? { speechPostProcessingModelSelection: patch.speechPostProcessingModelSelection }
       : {}),
+    // A nested selection is replaced whole, or deepMerge keeps the old model's options.
+    ...(patch.globalMemory?.modelSelection !== undefined
+      ? {
+          globalMemory: {
+            ...current.globalMemory,
+            ...patch.globalMemory,
+            modelSelection: patch.globalMemory.modelSelection,
+          },
+        }
+      : {}),
     ...(patch.defaultProjectScripts !== undefined
       ? { defaultProjectScripts: patch.defaultProjectScripts }
       : {}),

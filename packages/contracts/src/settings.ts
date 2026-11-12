@@ -33,6 +33,7 @@ import {
   ProviderOptionSelections,
 } from "./model.ts";
 import { ModelSelection } from "./modelSelection.ts";
+import { GlobalMemorySettings } from "./memory.ts";
 import { ProjectScript, type ProjectMutation } from "./project.ts";
 import { DEFAULT_RUNTIME_MODE, RuntimeMode } from "./providerPolicy.ts";
 import { BrowserProfile, BrowserProfileId, DEFAULT_BROWSER_PROFILE_ID } from "./browserProfile.ts";
@@ -1435,6 +1436,9 @@ export const ServerSettings = Schema.Struct({
   issueAutoDev: IssueAutoDevSettings.pipe(
     Schema.withDecodingDefault(Effect.succeed(Schema.decodeSync(IssueAutoDevSettings)({}))),
   ),
+  globalMemory: GlobalMemorySettings.pipe(
+    Schema.withDecodingDefault(Effect.succeed(Schema.decodeSync(GlobalMemorySettings)({}))),
+  ),
   cloudSpeechCredentials: CloudSpeechCredentials.pipe(
     Schema.withDecodingDefault(Effect.succeed({ openai: "", xai: "", openrouter: "" })),
   ),
@@ -1900,6 +1904,14 @@ export const ServerSettingsPatch = Schema.Struct({
     Schema.Struct({
       enabled: Schema.optionalKey(Schema.Boolean),
       intervalMinutes: Schema.optionalKey(IssueAutoDevSettings.fields.intervalMinutes),
+    }),
+  ),
+  globalMemory: Schema.optionalKey(
+    Schema.Struct({
+      enabled: Schema.optionalKey(Schema.Boolean),
+      everyTurns: Schema.optionalKey(GlobalMemorySettings.fields.everyTurns),
+      everyMinutes: Schema.optionalKey(GlobalMemorySettings.fields.everyMinutes),
+      modelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
     }),
   ),
   cloudSpeechCredentials: Schema.optionalKey(

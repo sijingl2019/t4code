@@ -987,6 +987,14 @@ export const SETTINGS_SEARCH_ITEMS = [
     textGeneratorsOnly: true,
   },
   {
+    id: "global-memory",
+    title: "Global memory",
+    to: "/settings/providers",
+    scope: "environment",
+    searchTerms: ["memory remember summarize summary threads recall claude-mem"],
+    providerSettingsOnly: true,
+  },
+  {
     id: "provider-health-check-interval",
     title: "Health check interval",
     to: "/settings/providers",

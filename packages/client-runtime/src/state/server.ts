@@ -1697,6 +1697,14 @@ export function createServerEnvironmentAtoms<R, E>(
         key: ({ environmentId }) => environmentId,
       },
     }),
+    getMemoryStats: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:memory:get-stats",
+      tag: WS_METHODS.memoryGetStats,
+    }),
+    clearMemory: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:memory:clear",
+      tag: WS_METHODS.memoryClear,
+    }),
     listTextGeneratorModels: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:server:list-text-generator-models",
       tag: WS_METHODS.serverListTextGeneratorModels,

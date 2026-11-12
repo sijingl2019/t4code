@@ -393,6 +393,7 @@ import {
   IssueTestConnectionResult,
   IssueTrackerError,
 } from "./issues.ts";
+import { MemoryEmptyInput, MemoryStats, MemoryStoreError } from "./memory.ts";
 import {
   ProjectCloneActionInput,
   ProjectCloneActionResult,
@@ -619,6 +620,8 @@ export const WS_METHODS = {
   issuesGet: "issues.get",
   issuesTestConnection: "issues.testConnection",
   issuesSyncBindings: "issues.syncBindings",
+  memoryGetStats: "memory.getStats",
+  memoryClear: "memory.clear",
   projectCloneStart: "projectClone.start",
   projectCloneCancel: "projectClone.cancel",
   projectCloneRetry: "projectClone.retry",
@@ -1332,6 +1335,18 @@ const WsIssuesSyncBindingsRpc = Rpc.make(WS_METHODS.issuesSyncBindings, {
   payload: Schema.Struct({}),
   success: IssueSyncBindingsResult,
   error: EnvironmentAuthorizationError,
+});
+
+const WsMemoryGetStatsRpc = Rpc.make(WS_METHODS.memoryGetStats, {
+  payload: MemoryEmptyInput,
+  success: MemoryStats,
+  error: Schema.Union([MemoryStoreError, EnvironmentAuthorizationError]),
+});
+
+const WsMemoryClearRpc = Rpc.make(WS_METHODS.memoryClear, {
+  payload: MemoryEmptyInput,
+  success: MemoryStats,
+  error: Schema.Union([MemoryStoreError, EnvironmentAuthorizationError]),
 });
 
 // Returns when the project exists and cloning starts; progress uses the subscription.
@@ -2220,6 +2235,8 @@ export const WsRpcGroup = RpcGroup.make(
   WsIssuesGetRpc,
   WsIssuesTestConnectionRpc,
   WsIssuesSyncBindingsRpc,
+  WsMemoryGetStatsRpc,
+  WsMemoryClearRpc,
   WsProjectCloneStartRpc,
   WsProjectCloneCancelRpc,
   WsProjectCloneRetryRpc,

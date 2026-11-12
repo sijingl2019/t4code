@@ -218,6 +218,7 @@ import * as ScratchThreadPromotion from "./project/ScratchThreadPromotion.ts";
 import { mutateProjectWithClone } from "./project/ProjectMutation.ts";
 import * as ProjectCloneTracker from "./project/ProjectCloneTracker.ts";
 import * as IssueService from "./issues/IssueService.ts";
+import * as MemoryService from "./memory/MemoryService.ts";
 import * as RepositoryIdentityResolver from "./project/RepositoryIdentityResolver.ts";
 import * as WorktreeSetupTracker from "./project/WorktreeSetupTracker.ts";
 import * as ServerEnvironment from "./environment/ServerEnvironment.ts";
@@ -1477,6 +1478,7 @@ export const layerWsRpc = (
       const worktreeSetupTracker = yield* WorktreeSetupTracker.WorktreeSetupTracker;
       const projectCloneTracker = yield* ProjectCloneTracker.ProjectCloneTracker;
       const issueService = yield* IssueService.IssueService;
+      const memoryService = yield* MemoryService.MemoryService;
       const repositoryIdentityResolver =
         yield* RepositoryIdentityResolver.RepositoryIdentityResolver;
       const projectEnrichment = yield* ProjectEnrichmentService.ProjectEnrichmentService;
@@ -2825,6 +2827,8 @@ export const layerWsRpc = (
         [WS_METHODS.issuesList]: (input) => issueService.list(input.projectId),
         [WS_METHODS.issuesGet]: (input) => issueService.get(input.issueUuid),
         [WS_METHODS.issuesTestConnection]: () => issueService.testConnection,
+        [WS_METHODS.memoryGetStats]: () => memoryService.stats,
+        [WS_METHODS.memoryClear]: () => memoryService.clear,
         [WS_METHODS.issuesSyncBindings]: () =>
           issueService.syncBindings((input) => projectCloneTracker.start(input, projectCloneHooks)),
         [WS_METHODS.projectsEnsureScratch]: () =>

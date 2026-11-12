@@ -57,6 +57,23 @@ describe("fallbackTextGenerationModelSelection", () => {
     expect(
       applyServerSettingsPatch(settings, { fallbackModelSelection: null }).fallbackModelSelection,
     ).toBeNull();
+    const memory = applyServerSettingsPatch(
+      {
+        ...DEFAULT_SERVER_SETTINGS,
+        globalMemory: {
+          ...DEFAULT_SERVER_SETTINGS.globalMemory,
+          everyTurns: 7,
+          modelSelection: {
+            ...fallbackModelSelection,
+            model: "old",
+            options: [{ id: "effort", value: "high" }],
+          },
+        },
+      },
+      { globalMemory: { modelSelection: fallbackModelSelection } },
+    ).globalMemory;
+    expect(memory.modelSelection).toEqual(fallbackModelSelection);
+    expect(memory.everyTurns).toBe(7);
   });
   it("falls back to a configured non-default instance", () => {
     const configured = ProviderInstanceId.make("codex_work");
