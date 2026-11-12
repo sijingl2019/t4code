@@ -2863,7 +2863,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       protocols: [
         {
           name: "T4 Code",
-          schemes: ["t3code", "t3code-dev"],
+          schemes: ["t4code", "t4code-dev"],
         },
         {
           name: "Web site URL",
@@ -2916,7 +2916,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       protocols: [
         {
           name: "T4 Code",
-          schemes: ["t3code", "t3code-dev"],
+          schemes: ["t4code", "t4code-dev"],
         },
       ],
       desktop: {
@@ -2953,6 +2953,8 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     buildConfig.npmRebuild = false;
     buildConfig.nsis = {
       differentialPackage: true,
+      oneClick: false,
+      allowToChangeInstallationDirectory: true,
       include: "apps/desktop/resources/installer.nsh",
     };
     const winConfig: Record<string, unknown> = {
@@ -3870,7 +3872,7 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
       ? path.join(stageAppDir, WINDOWS_SERVER_RESOURCE_SOURCE_DIR, WINDOWS_SERVER_ASAR_RESOURCE)
       : undefined;
   const stagePackageJson: StagePackageJson = {
-    name: "t3code",
+    name: "t4code",
     version: appVersion,
     buildVersion: appVersion,
     t3codeCommitHash: commitHash,
