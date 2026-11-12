@@ -532,13 +532,9 @@ function useSidebarThreads(input: {
           return {
             group: folder.group,
             collapsed,
-            // A closed folder still shows the open thread, and hints at the rest.
-            threads: collapsed
-              ? routeThreadOnly(folder.threads, routeRowThreadKey)
-              : folder.threads,
-            hiddenThreads: collapsed
-              ? folder.threads.filter((thread) => threadShellKey(thread) !== routeRowThreadKey)
-              : EMPTY_THREADS,
+            // t4code: a closed folder hides every thread, the open one too; the header hints at them.
+            threads: collapsed ? EMPTY_THREADS : folder.threads,
+            hiddenThreads: collapsed ? folder.threads : EMPTY_THREADS,
           };
         });
   const orderedThreads = [

@@ -58,7 +58,9 @@ mac/linux protocol schemes `t4code`; NSIS assisted installer with a choosable in
 Branding (T4 Code name, `~/.t4` home including dev default and remote SSH/WSL runtimes): applied by
 `scripts/t4-rebrand.sh`, a sed pass over upstream text that `sync-upstream.sh` re-runs after every
 merge. On a text conflict take upstream's side and re-run the script; never hand-edit "T3 Code" lines.
-The MCP server now advertises "T4 Code", so `packages/shared/src/t3McpToolPresentation.ts` matches
+The sidebar brand mark draws "T3" as an SVG (`T3Wordmark`), which the script cannot rewrite, so
+`apps/web/src/components/sidebar/SidebarChrome.tsx` renders the text "T4" in its place; re-apply after a
+conflict there. The MCP server now advertises "T4 Code", so `packages/shared/src/t3McpToolPresentation.ts` matches
 `t[34]` in its display-name prefix regex.
 Code identifiers (`@t3tools/*`, `T3CODE_*`, `t3.json`, the worktree-local `.t3` dev dir), docs and
 the marketing site stay upstream's. Icons (`assets/{prod,dev}`, `apps/web/public`) were retouched
@@ -72,7 +74,8 @@ Features:
   `SettingsPanels.tsx` / `settingsSearch.ts`.
 - Sidebar grouped by project with an always-visible new-thread button on the project row:
   `boringSidebarEnabled` defaults to `true` (`settings.ts`), `SidebarProjectFolderHeader.tsx`;
-  projects with no threads still get a folder (`keepEmptyFolders` in `Sidebar.tsx`, upstream keeps only pinned ones).
+  projects with no threads still get a folder (`keepEmptyFolders` in `Sidebar.tsx`, upstream keeps only pinned ones); a collapsed folder hides all
+  its threads, the open one too (upstream keeps the open thread visible; `projectFolders` in `Sidebar.tsx`).
 - Issue trackers, ONES only so far (server settings `ones`, `issueProjectBindings`,
   `issueAutoDev`): service in `apps/server/src/issues/`. Trackers are adapters: `IssueTrackerClient.ts`
   is the base class (login session, 401 re-login, timed JSON requests, attachment downloads), each
