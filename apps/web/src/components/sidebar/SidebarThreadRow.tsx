@@ -67,6 +67,7 @@ import {
 
 import { useRightPanelStore } from "../../rightPanelStore";
 import { useOpenPrLink } from "../../lib/openPullRequestLink";
+import { observeVisibleAnimation } from "../../lib/visibleAnimation";
 import { useUiStateStore } from "../../uiStateStore";
 import { useThreadSelectionStore } from "../../threadSelectionStore";
 import { useNowMinute } from "../../hooks/useNowMinute";
@@ -538,7 +539,14 @@ const TOP_STATUS_ICONS = {
 
 function TopStatusIcon(props: { icon: keyof typeof TOP_STATUS_ICONS; className: string }) {
   const Icon = TOP_STATUS_ICONS[props.icon];
-  return <Icon aria-hidden className={cn("shrink-0", props.className)} />;
+  const spins = props.icon === "working";
+  return (
+    <Icon
+      aria-hidden
+      ref={spins ? observeVisibleAnimation : undefined}
+      className={cn("shrink-0", spins && "motion-safe:visible-animate-spin", props.className)}
+    />
+  );
 }
 
 type SidebarThreadRowProps = {

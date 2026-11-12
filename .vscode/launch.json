@@ -1,0 +1,46 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Desktop: dev (main + server)",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "program": "${workspaceFolder}/scripts/dev-runner.ts",
+      "args": ["dev:desktop"],
+      "env": {
+        "T3CODE_DESKTOP_REMOTE_DEBUGGING_PORT": "9222",
+        "PATH": "${workspaceFolder}/node_modules/.bin:${env:PATH}"
+      },
+      "windows": {
+        "env": {
+          "T3CODE_DESKTOP_REMOTE_DEBUGGING_PORT": "9222",
+          "PATH": "${workspaceFolder}\\node_modules\\.bin;${env:PATH}"
+        }
+      },
+      "autoAttachChildProcesses": true,
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "outFiles": [
+        "${workspaceFolder}/apps/desktop/dist-electron/**/*.cjs",
+        "${workspaceFolder}/apps/server/dist/**/*.mjs"
+      ],
+      "resolveSourceMapLocations": ["${workspaceFolder}/**", "!**/node_modules/**"]
+    },
+    {
+      "name": "Desktop: renderer",
+      "type": "chrome",
+      "request": "attach",
+      "port": 9222,
+      "webRoot": "${workspaceFolder}/apps/web",
+      "timeout": 120000
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Desktop: full",
+      "configurations": ["Desktop: dev (main + server)", "Desktop: renderer"],
+      "stopAll": true
+    }
+  ]
+}

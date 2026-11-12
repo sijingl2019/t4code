@@ -71,7 +71,8 @@ Features:
   `apps/web/src/appInit.tsx`, UI in `AppearanceSettingsPanel.tsx`, reset/search entries in
   `SettingsPanels.tsx` / `settingsSearch.ts`.
 - Sidebar grouped by project with an always-visible new-thread button on the project row:
-  `boringSidebarEnabled` defaults to `true` (`settings.ts`), `SidebarProjectFolderHeader.tsx`.
+  `boringSidebarEnabled` defaults to `true` (`settings.ts`), `SidebarProjectFolderHeader.tsx`;
+  projects with no threads still get a folder (`keepEmptyFolders` in `Sidebar.tsx`, upstream keeps only pinned ones).
 - ONES issues (server settings `ones`, `issueRepoCredentials`, `issueProjectBindings`,
   `issueAutoDev`): service in `apps/server/src/issues/`, RPCs `issues.*` in
   `packages/contracts/src/{issues,rpc}.ts`, scopes in `apps/server/src/auth/RpcAuthorization.ts`,

@@ -67,8 +67,8 @@ import { resolveActiveThreadRouteRef, resolveThreadRouteTarget } from "./threadR
 /**
  * Draws the background image over the whole window (sidebar, chat, terminal alike).
  * It sits on top with pointer-events off, so no panel needs a translucent surface.
- * ponytail: overlay dims text contrast slightly; switch panel tokens to color-mix
- * transparency if an "image underneath" look is wanted.
+ * Blending (screen on dark, multiply on light) tints the surfaces but leaves
+ * near-white / near-black text untouched, so the overlay does not wash text out.
  */
 function applyWindowBackground(image: string, opacityPercent: number): void {
   const id = "t4-window-background";
@@ -81,6 +81,7 @@ function applyWindowBackground(image: string, opacityPercent: number): void {
     layer = document.createElement("div");
     layer.id = id;
     layer.setAttribute("aria-hidden", "true");
+    layer.className = "mix-blend-multiply dark:mix-blend-screen";
     Object.assign(layer.style, {
       position: "fixed",
       inset: "0",

@@ -1350,8 +1350,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           [...scopeGroups, ...projectGroups.filter((project) => project.archived)]
         : scopedProjectGroups
       : null,
-    keepEmptyFolders: (group) =>
-      scopedProjectGroups.length > 0 || (group.pinned && !group.archived),
+    keepEmptyFolders: (group) => scopedProjectGroups.length > 0 || !group.archived,
   });
 
   // Ranked across environments as the palette ranks them, so one
