@@ -60,7 +60,7 @@ const DEV_STATE_LABEL: Record<DevState, string> = {
 };
 
 const projectLabel = (row: IssueBoardRow) =>
-  `${row.trackerProjectName || "?"} → ${row.projects.map((p) => p.name).join(", ")}`;
+  `${row.trackerProjectName || "?"} → ${row.projects.map((p) => p.name).join(", ") || "not linked"}`;
 
 /** The /issues page: the board for the primary environment. */
 export function IssueBoardPage() {
@@ -79,7 +79,7 @@ export function IssueBoardPage() {
   );
 }
 
-/** Every issue assigned to the user in bound tracker projects, with status edits and one-click runs. */
+/** Every issue assigned to the user, with status edits and one-click runs in linked projects. */
 function IssueBoardTable({ environmentId }: { environmentId: EnvironmentId }) {
   const loadBoard = useAtomCommand(serverEnvironment.getIssueBoard);
   const setIssueStatus = useAtomCommand(serverEnvironment.setIssueStatus);
@@ -168,7 +168,9 @@ function IssueBoardTable({ environmentId }: { environmentId: EnvironmentId }) {
     threads.filter((t) => t.environmentId === environmentId).map((t) => [t.id, t] as const),
   );
   const rows = board?.rows ?? [];
-  const trackerProjects = [...new Set(rows.map((r) => r.trackerProjectName))].toSorted();
+  const trackerProjects = [
+    ...new Set([...(board?.trackerProjectNames ?? []), ...rows.map((r) => r.trackerProjectName)]),
+  ].toSorted();
   const needle = query.trim().toLowerCase();
   const visible = rows
     .filter(
@@ -358,9 +360,11 @@ function IssueBoardTable({ environmentId }: { environmentId: EnvironmentId }) {
                         title={
                           row.threadId !== null
                             ? "A thread is already started"
-                            : `Run in ${row.projects[0]?.name ?? "?"}`
+                            : row.projects[0]
+                              ? `Run in ${row.projects[0].name}`
+                              : "Link this tracker project to a T4 project first"
                         }
-                        disabled={isBusy || row.threadId !== null}
+                        disabled={isBusy || row.threadId !== null || row.projects.length === 0}
                         onClick={() => void execute(row)}
                       >
                         <PlayIcon />

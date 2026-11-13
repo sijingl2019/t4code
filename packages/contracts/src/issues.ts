@@ -116,10 +116,11 @@ export function hasAutoDevMarker(descriptionText: string): boolean {
 export const IssueBoardProject = Schema.Struct({ id: ProjectId, name: Schema.String });
 export type IssueBoardProject = typeof IssueBoardProject.Type;
 
-/** One issue assigned to the user, in a tracker project bound to at least one T4 project. */
+/** One issue assigned to the user. */
 export const IssueBoardRow = Schema.Struct({
   issue: Issue,
   trackerProjectName: Schema.String,
+  /** T4 projects bound to the issue's tracker project; empty when it is not linked yet. */
   projects: Schema.Array(IssueBoardProject),
   /** The thread started for this issue from the board or by auto development. */
   threadId: Schema.NullOr(ThreadId),
@@ -128,6 +129,8 @@ export type IssueBoardRow = typeof IssueBoardRow.Type;
 
 export const IssueBoard = Schema.Struct({
   rows: Schema.Array(IssueBoardRow),
+  /** Names of every project in the readable trackers, for the project filter. */
+  trackerProjectNames: Schema.Array(Schema.String),
   /** Statuses per tracker id, for the status pickers. */
   statuses: Schema.Record(Schema.String, Schema.Array(IssueTrackerStatus)),
   /** Trackers that could not be read, with the reason. */

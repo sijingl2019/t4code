@@ -145,7 +145,7 @@ Features:
 - Issue board (footer "Issues" button in `SidebarChrome.tsx`, shown while `issueAutoDev.enabled`):
   a `/issues` page like `/pull-requests` (route `routes/_chat.issues.tsx`, listed in
   `isSidebarUtilityPage` in `sidebar/mainAppLocation.ts`, marked `t4code`).
-  `apps/web/src/issues/IssueBoardPage.tsx` lists the user's issues in bound tracker projects
+  `apps/web/src/issues/IssueBoardPage.tsx` lists the user's open issues in every tracker project, plus finished ones that have a thread (unlinked ones cannot be run)
   (`issues.board`), changes their status (`issues.setStatus`, via `moveToStatus`), and runs one
   (`issues.execute` → `launchAuto`, same `ones-auto:` command id, so one thread per issue). A row's dot
   reads the issue's thread (found by its `ones-auto-message:` first message id) from the client's

@@ -68,7 +68,7 @@ export class IssueService extends Context.Service<
     ) => Effect.Effect<IssueGetResult, IssueTrackerError>;
     readonly testConnection: (trackerId?: string) => Effect.Effect<IssueTestConnectionResult>;
     readonly catalog: (trackerId?: string) => Effect.Effect<IssueTrackerCatalog, IssueTrackerError>;
-    /** The user's issues in bound tracker projects, with the thread started for each. */
+    /** The user's issues across trackers, with bound T4 projects and the thread started for each. */
     readonly board: () => Effect.Effect<IssueBoard, IssueTrackerError>;
     /** Starts the issue's auto-dev thread in the project (idempotent per issue). */
     readonly execute: (
@@ -378,18 +378,34 @@ export const layer = Layer.effect(
       }
       const threads = yield* issueThreads;
       const rows: IssueBoardRow[] = [];
+      const trackerProjectNames = new Set<string>();
       const statuses: Record<string, ReadonlyArray<IssueTrackerStatus>> = {};
       const errors: string[] = [];
       for (const tracker of issueTrackersOf(settings)) {
         if (!issueTrackerAdapter(tracker.kind)) continue;
-        if (!settings.issueProjectBindings.some((b) => b.trackerId === tracker.id)) continue;
         const loaded = yield* Effect.gen(function* () {
           const client = yield* clientFor(tracker);
-          const issues = yield* listAll(tracker, true);
-          const [trackerProjects, trackerStatuses] = yield* Effect.tryPromise({
-            try: () => Promise.all([client.listProjects(), client.listStatuses()]),
+          const listed = yield* listAll(tracker, true);
+          const [trackerProjects, trackerStatuses, everyStatus] = yield* Effect.tryPromise({
+            try: () =>
+              Promise.all([
+                client.listProjects(),
+                client.listStatuses(),
+                // Finished issues leave the status filter but stay on the board while they have a thread.
+                client.listMyIssues({ mode: "exclude", statusIds: [] }),
+              ]),
             catch: fail,
           });
+          const listedIds = new Set(listed.map((issue) => issue.uuid));
+          const issues = [
+            ...listed,
+            ...everyStatus
+              .filter(
+                (issue) =>
+                  !listedIds.has(issue.uuid) && threads.has(autoDevKey(tracker.id, issue.uuid)),
+              )
+              .map((issue) => ({ ...issue, trackerId: tracker.id })),
+          ];
           return { issues, trackerProjects, trackerStatuses };
         }).pipe(
           Effect.catch((error: IssueTrackerError) =>
@@ -402,18 +418,17 @@ export const layer = Layer.effect(
         if (loaded === null) continue;
         statuses[tracker.id] = loaded.trackerStatuses;
         const projectNames = new Map(loaded.trackerProjects.map((p) => [p.id, p.name]));
+        for (const project of loaded.trackerProjects) trackerProjectNames.add(project.name);
         for (const issue of loaded.issues) {
-          const bound = boundProjects.get(`${tracker.id}/${issue.trackerProjectId}`);
-          if (!bound) continue;
           rows.push({
             issue,
             trackerProjectName: projectNames.get(issue.trackerProjectId) ?? "",
-            projects: bound,
+            projects: boundProjects.get(`${tracker.id}/${issue.trackerProjectId}`) ?? [],
             threadId: threads.get(autoDevKey(tracker.id, issue.uuid)) ?? null,
           });
         }
       }
-      return { rows, statuses, errors };
+      return { rows, trackerProjectNames: [...trackerProjectNames], statuses, errors };
     });
 
     const execute: IssueService["Service"]["execute"] = Effect.fn("IssueService.execute")(
