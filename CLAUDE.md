@@ -109,7 +109,8 @@ Features:
   `packages/contracts/src/clientRpcPermissions.ts`, "Trackers" settings section `IssueSettings.tsx` (mounted in
   `ProjectsSettings.tsx`, shown when no project is selected; one card per tracker with its tracker projects
   and a T4 project multi-picker), "Link" dialog opened from the project folder's "…" menu
-  (`IssueProjectLinkDialog` in `apps/web/src/issues/OnesProjectLinks.tsx`), issue picker `components/sidebar/OnesIssuePickerDialog.tsx` (opened from
+  (`IssueProjectLinkDialog` in `apps/web/src/issues/OnesProjectLinks.tsx`; an unbound project's folder
+  row also shows a link button after its thread count, `SidebarProjectFolderHeader.tsx`), issue picker `components/sidebar/OnesIssuePickerDialog.tsx` (opened from
   `SidebarProjectFolderHeader.tsx`), attachments handed to the composer via
   `apps/web/src/issues/pendingIssueFiles.ts` (consumed in `ChatComposer.tsx`).
 - Sidebar project folder "…" menu (Pin / Edit / Link Issues / Open in File Explorer / Open in VS Code / Archive / Remove) in place of

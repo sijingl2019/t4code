@@ -1,9 +1,12 @@
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
-import { SquarePenIcon, TicketIcon } from "lucide-react";
+import { LinkIcon, SquarePenIcon, TicketIcon } from "lucide-react";
 import { memo, useState } from "react";
 
 import { cn } from "~/lib/utils";
+import { IssueProjectLinkDialog } from "../../issues/OnesProjectLinks";
+import { linkableIssueTrackers } from "../../issues/useIssueTrackerCatalog";
+import { useServerConfigs } from "../../state/entities";
 import type { SidebarProjectSnapshot } from "../../sidebarProjectGrouping";
 import { useUiStateStore } from "../../uiStateStore";
 import { resolveSidebarFolderDot, resolveThreadLastVisitedAt } from "../Sidebar.logic";
@@ -51,6 +54,10 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
   const localLastVisitedAtById = useUiStateStore((state) => state.threadLastVisitedAtById);
   const hasIssueBinding = useHasIssueBinding(group.environmentId, group.workspaceRoot);
   const [issuePickerOpen, setIssuePickerOpen] = useState(false);
+  // t4code: unbound projects get a "Link trackers" button in the issue button's place.
+  const settings = useServerConfigs().get(group.environmentId)?.settings;
+  const canLinkTracker = !hasIssueBinding && linkableIssueTrackers(settings).length > 0;
+  const [linkOpen, setLinkOpen] = useState(false);
   const dot = collapsed
     ? resolveSidebarFolderDot(
         hiddenThreads.map((thread) => ({
@@ -95,7 +102,10 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
           </span>
         ) : null}
         {/* Room for the always-visible buttons that sit over this slot. */}
-        <span aria-hidden className={cn("shrink-0", hasIssueBinding ? "w-18" : "w-12")} />
+        <span
+          aria-hidden
+          className={cn("shrink-0", hasIssueBinding || canLinkTracker ? "w-18" : "w-12")}
+        />
       </button>
       {/* Always visible, on the same line as the project name. */}
       <span className="absolute inset-y-0 right-1 flex items-center">
@@ -114,6 +124,23 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
               <TicketIcon aria-hidden />
             </TooltipTrigger>
             <TooltipPopup>New thread from an issue</TooltipPopup>
+          </Tooltip>
+        ) : null}
+        {canLinkTracker ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  size="icon-xs"
+                  variant="ghost-muted"
+                  aria-label={`Link trackers to ${group.displayName}`}
+                  onClick={() => setLinkOpen(true)}
+                />
+              }
+            >
+              <LinkIcon aria-hidden />
+            </TooltipTrigger>
+            <TooltipPopup>Link trackers</TooltipPopup>
           </Tooltip>
         ) : null}
         <ProjectFolderMenu group={group} onOpenSettings={props.onOpenSettings} />
@@ -141,6 +168,14 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
           environmentId={group.environmentId}
           projectId={group.id}
           projectName={group.displayName}
+        />
+      ) : null}
+      {linkOpen ? (
+        <IssueProjectLinkDialog
+          environmentId={group.environmentId}
+          workspaceRoot={group.workspaceRoot}
+          projectName={group.displayName}
+          onClose={() => setLinkOpen(false)}
         />
       ) : null}
     </li>
