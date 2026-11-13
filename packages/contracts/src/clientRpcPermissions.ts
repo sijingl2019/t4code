@@ -29,6 +29,9 @@ export const CLIENT_GUARDED_RPC_SCOPES = {
   [WS_METHODS.issuesGet]: AuthOrchestrationReadScope,
   [WS_METHODS.issuesTestConnection]: AuthSettingsWriteScope,
   [WS_METHODS.issuesCatalog]: AuthSettingsWriteScope,
+  [WS_METHODS.issuesBoard]: AuthOrchestrationReadScope,
+  [WS_METHODS.issuesExecute]: AuthOrchestrationOperateScope,
+  [WS_METHODS.issuesSetStatus]: AuthOrchestrationOperateScope,
   [WS_METHODS.memoryClear]: AuthSettingsWriteScope,
   // Listing models spends the stored API key, so only those who can choose a model may.
   [WS_METHODS.serverListTextGeneratorModels]: AuthSettingsWriteScope,

@@ -4,7 +4,6 @@
  * see docs/ones-api-notes.md in the kika project before changing them.
  */
 import type {
-  Issue,
   IssueAttachmentRef,
   IssueStatusFilter,
   IssueTrackerProject,
@@ -15,6 +14,7 @@ import {
   IssueTrackerClient,
   IssueTrackerClientError,
   type Json as J,
+  type TrackerIssue,
 } from "./IssueTrackerClient.ts";
 
 export interface OnesConnection {
@@ -150,7 +150,7 @@ export class OnesClient extends IssueTrackerClient {
     }));
   }
 
-  async listMyIssues(filter: IssueStatusFilter): Promise<Issue[]> {
+  async listMyIssues(filter: IssueStatusFilter): Promise<TrackerIssue[]> {
     await this.ensureLogin();
     // An explicit filter needs every status, so the server-side "not done" filter is skipped.
     const filtered = filter.mode === "default" && this.filtered;
@@ -179,6 +179,7 @@ export class OnesClient extends IssueTrackerClient {
       title: t.name ?? "",
       descriptionText: t.descriptionText ?? "",
       status: t.status?.name ?? "",
+      statusId: t.status?.uuid ?? "",
       url: `${this.baseUrl}/project/#/team/${this.team}/task/${t.uuid}`,
       trackerProjectId: t.project?.uuid ?? "",
       updatedAt: iso(t.serverUpdateStamp),
@@ -196,7 +197,37 @@ export class OnesClient extends IssueTrackerClient {
     });
   }
 
-  async loadIssue(uuid: string, status = ""): Promise<Issue> {
+  /**
+   * Verified: GET `/task/{uuid}/transitions` lists `{ uuid, end_status_uuid }` from the current
+   * status; POST `/task/{uuid}/new_transit` with `{ transition_uuid }` applies one.
+   */
+  async moveToStatus(uuid: string, statusId: string): Promise<boolean> {
+    const r = await this.api("GET", `/task/${uuid}/transitions`);
+    const transition = (Array.isArray(r?.transitions) ? r.transitions : []).find(
+      (t: J) => t.end_status_uuid === statusId,
+    );
+    if (!transition) return false;
+    await this.api("POST", `/task/${uuid}/new_transit`, { transition_uuid: transition.uuid });
+    return true;
+  }
+
+  private issueFromInfo(d: J, status: string): TrackerIssue {
+    return {
+      uuid: d.uuid,
+      key: `ONES-${d.number}`,
+      number: d.number,
+      title: d.summary ?? "",
+      descriptionText: d.desc ?? "",
+      status,
+      url: `${this.baseUrl}/project/#/team/${this.team}/task/${d.uuid}`,
+      trackerProjectId: d.project_uuid ?? "",
+      updatedAt: iso(d.server_update_stamp),
+      comments: [],
+      attachments: [],
+    };
+  }
+
+  async loadIssue(uuid: string, status = ""): Promise<TrackerIssue> {
     const d = await this.api("GET", `/task/${uuid}/info`);
     const m = await this.api("GET", `/task/${uuid}/messages`);
     // Verified shape: `{ messages: [...], count, has_next }`.
@@ -214,15 +245,7 @@ export class OnesClient extends IssueTrackerClient {
       }
     }
     return {
-      uuid: d.uuid,
-      key: `ONES-${d.number}`,
-      number: d.number,
-      title: d.summary ?? "",
-      descriptionText: d.desc ?? "",
-      status,
-      url: `${this.baseUrl}/project/#/team/${this.team}/task/${d.uuid}`,
-      trackerProjectId: d.project_uuid ?? "",
-      updatedAt: iso(d.server_update_stamp),
+      ...this.issueFromInfo(d, status),
       comments: discussions
         .filter((x) => x.text)
         .map((x) => ({ author: x.from_name ?? "", createdAt: iso(x.send_time), text: x.text })),

@@ -1382,15 +1382,46 @@ export const OnesSettings = Schema.Struct({
   statusFilter: IssueStatusFilter.pipe(
     Schema.withDecodingDefault(Effect.succeed(Schema.decodeSync(IssueStatusFilter)({}))),
   ),
+  /** Status an auto-dev issue moves to after a completed run; empty leaves the status alone. */
+  doneStatusId: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
 });
 export type OnesSettings = typeof OnesSettings.Type;
+
+export const IssueTrackerKind = Schema.Literals(["ones", "jira"]);
+export type IssueTrackerKind = typeof IssueTrackerKind.Type;
+/** Id the legacy single `ones` connection migrates to; old bindings default to it. */
+export const LEGACY_ISSUE_TRACKER_ID = "ones";
+
+/** One issue tracker connection. `teamUuid` is ONES-only; Jira is not fetched yet. */
+export const IssueTrackerConnection = Schema.Struct({
+  id: TrimmedNonEmptyString,
+  kind: IssueTrackerKind.pipe(Schema.withDecodingDefault(Effect.succeed("ones" as const))),
+  name: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
+  ...OnesSettings.fields,
+});
+export type IssueTrackerConnection = typeof IssueTrackerConnection.Type;
+
+/** The configured trackers; until the list is first saved, the legacy `ones` connection. */
+export function issueTrackersOf(
+  settings: Pick<ServerSettings, "issueTrackers" | "ones">,
+): ReadonlyArray<IssueTrackerConnection> {
+  if (settings.issueTrackers !== null) return settings.issueTrackers;
+  const { ones } = settings;
+  return ones.baseUrl === "" && ones.email === ""
+    ? []
+    : [{ id: LEGACY_ISSUE_TRACKER_ID, kind: "ones", name: "ONES", ...ones }];
+}
 
 /**
  * Binds an ONES project to the T4 project whose workspace root is `localPath`. One ONES project
  * may have several entries, one per bound T4 project.
  */
 export const IssueProjectBinding = Schema.Struct({
+  /** Tracker project id (any tracker kind; the name predates multiple trackers). */
   onesProjectUuid: TrimmedNonEmptyString,
+  trackerId: TrimmedNonEmptyString.pipe(
+    Schema.withDecodingDefault(Effect.succeed(LEGACY_ISSUE_TRACKER_ID)),
+  ),
   localPath: TrimmedNonEmptyString,
 });
 export type IssueProjectBinding = typeof IssueProjectBinding.Type;
@@ -1449,6 +1480,10 @@ export const ServerSettings = Schema.Struct({
   ),
   issueProjectBindings: Schema.Array(IssueProjectBinding).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
+  ),
+  // Null means unmigrated: `issueTrackersOf` falls back to the legacy `ones` connection.
+  issueTrackers: Schema.NullOr(Schema.Array(IssueTrackerConnection)).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
   ),
   issueAutoDev: IssueAutoDevSettings.pipe(
     Schema.withDecodingDefault(Effect.succeed(Schema.decodeSync(IssueAutoDevSettings)({}))),
@@ -1909,9 +1944,11 @@ export const ServerSettingsPatch = Schema.Struct({
       email: Schema.optionalKey(TrimmedString),
       password: Schema.optionalKey(SettingsSecretValue),
       statusFilter: Schema.optionalKey(IssueStatusFilter),
+      doneStatusId: Schema.optionalKey(TrimmedString),
     }),
   ),
   issueProjectBindings: Schema.optionalKey(Schema.Array(IssueProjectBinding)),
+  issueTrackers: Schema.optionalKey(Schema.NullOr(Schema.Array(IssueTrackerConnection))),
   issueAutoDev: Schema.optionalKey(
     Schema.Struct({
       enabled: Schema.optionalKey(Schema.Boolean),

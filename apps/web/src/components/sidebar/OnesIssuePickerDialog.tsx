@@ -13,7 +13,7 @@ import { Button } from "../ui/button";
 import { Dialog, DialogHeader, DialogPanel, DialogPopup, DialogTitle } from "../ui/dialog";
 import { Input } from "../ui/input";
 
-/** Lists the ONES issues bound to a project; picking one starts a draft thread seeded from it. */
+/** Lists the tracker issues bound to a project; picking one starts a draft thread seeded from it. */
 export function OnesIssuePickerDialog(props: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -40,7 +40,7 @@ export function OnesIssuePickerDialog(props: {
       else {
         const cause = squashAtomCommandFailure(result);
         setError(
-          `Could not load ONES issues: ${cause instanceof Error ? cause.message : String(cause)}`,
+          `Could not load issues: ${cause instanceof Error ? cause.message : String(cause)}`,
         );
       }
     });
@@ -60,7 +60,10 @@ export function OnesIssuePickerDialog(props: {
 
   const pick = async (issue: Issue) => {
     setLoadingUuid(issue.uuid);
-    const result = await getIssue({ environmentId, input: { issueUuid: issue.uuid } });
+    const result = await getIssue({
+      environmentId,
+      input: { issueUuid: issue.uuid, trackerId: issue.trackerId },
+    });
     setLoadingUuid(null);
     if (result._tag !== "Success") return;
     const created = await handleNewThread(scopeProjectRef(environmentId, projectId), {
@@ -87,7 +90,7 @@ export function OnesIssuePickerDialog(props: {
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogPopup>
         <DialogHeader>
-          <DialogTitle>ONES issues · {props.projectName}</DialogTitle>
+          <DialogTitle>Issues · {props.projectName}</DialogTitle>
         </DialogHeader>
         <DialogPanel>
           <div className="grid gap-3">
@@ -109,7 +112,7 @@ export function OnesIssuePickerDialog(props: {
             ) : null}
             <ul className="grid max-h-96 gap-1 overflow-y-auto">
               {visible.map((issue) => (
-                <li key={issue.uuid} className="grid">
+                <li key={`${issue.trackerId}/${issue.uuid}`} className="grid">
                   <Button
                     variant="ghost"
                     size="multiline"
@@ -136,7 +139,7 @@ export function OnesIssuePickerDialog(props: {
   );
 }
 
-/** Whether the environment's ONES settings bind a project to this workspace root. */
+/** Whether the environment's issue settings bind a project to this workspace root. */
 export function useHasIssueBinding(environmentId: EnvironmentId, workspaceRoot: string): boolean {
   const bindings = useAtomValue(environmentServerConfigsAtom).get(environmentId)?.settings
     .issueProjectBindings;

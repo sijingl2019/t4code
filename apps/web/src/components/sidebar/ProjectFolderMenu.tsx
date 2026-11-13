@@ -23,11 +23,12 @@ import {
   useProjectPin,
 } from "../../hooks/useProjectGroupUpdate";
 import {
-  OnesProjectLinkDialog,
-  OnesProjectsField,
-  useOnesProjectLinks,
+  IssueProjectLinkDialog,
+  IssueProjectLinksFields,
+  useIssueProjectLinks,
+  type IssueLinkSelection,
 } from "../../issues/OnesProjectLinks";
-import { onesConfigured } from "../../issues/useIssueTrackerCatalog";
+import { linkableIssueTrackers } from "../../issues/useIssueTrackerCatalog";
 import { releaseProjectDraftUploads } from "../../lib/composerDraftUploads";
 import { getLocalFileManagerName } from "../../lib/utils";
 import { readLocalApi } from "../../localApi";
@@ -39,6 +40,7 @@ import { shellEnvironment } from "../../state/shell";
 import { readUnloadedThreadCount } from "../../state/olderSettledShelf";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { useOrchestrationCommand } from "../../state/use-orchestration-command";
+import { VisualStudioCode } from "../Icons";
 import { ProjectFavicon } from "../ProjectFavicon";
 import { Button } from "../ui/button";
 import {
@@ -58,7 +60,7 @@ const ProjectIconPickerDialog = lazy(() =>
   })),
 );
 
-/** The project folder's "…" menu: pin, edit, ONES projects, reveal, archive, remove. */
+/** The project folder's "…" menu: pin, edit, link issue projects, reveal, archive, remove. */
 export function ProjectFolderMenu(props: {
   group: SidebarProjectSnapshot;
   onOpenSettings: (group: SidebarProjectSnapshot) => void;
@@ -99,7 +101,7 @@ export function ProjectFolderMenu(props: {
         />
       ) : null}
       {onesOpen ? (
-        <OnesProjectLinkDialog
+        <IssueProjectLinkDialog
           environmentId={props.group.environmentId}
           workspaceRoot={props.group.workspaceRoot}
           projectName={props.group.displayName}
@@ -125,9 +127,9 @@ function ProjectFolderMenuItems({
   const config = useServerConfigs().get(group.environmentId);
   const openInEditor = useAtomCommand(shellEnvironment.openInEditor, "open in editor");
   const removeProject = useRemoveProjectGroup(group);
-  const canReveal =
-    group.environmentId === primaryEnvironmentId &&
-    config?.availableEditors.includes("file-manager") === true;
+  const isLocal = group.environmentId === primaryEnvironmentId;
+  const canReveal = isLocal && config?.availableEditors.includes("file-manager") === true;
+  const canOpenVsCode = isLocal && config?.availableEditors.includes("vscode") === true;
 
   return (
     <>
@@ -141,27 +143,38 @@ function ProjectFolderMenuItems({
         <PencilIcon />
         Edit
       </MenuItem>
-      {onesConfigured(config?.settings) ? (
+      {linkableIssueTrackers(config?.settings).length > 0 ? (
         <MenuItem onClick={onLinkOnes}>
           <LinkIcon />
-          ONES projects
+          Link Issues
         </MenuItem>
       ) : null}
+      {canReveal || canOpenVsCode ? <MenuSeparator /> : null}
       {canReveal ? (
-        <>
-          <MenuSeparator />
-          <MenuItem
-            onClick={() =>
-              void openInEditor({
-                environmentId: group.environmentId,
-                input: { cwd: group.workspaceRoot, editor: "file-manager" },
-              })
-            }
-          >
-            <FolderOpenIcon />
-            Open in {getLocalFileManagerName(navigator.platform)}
-          </MenuItem>
-        </>
+        <MenuItem
+          onClick={() =>
+            void openInEditor({
+              environmentId: group.environmentId,
+              input: { cwd: group.workspaceRoot, editor: "file-manager" },
+            })
+          }
+        >
+          <FolderOpenIcon />
+          Open in {getLocalFileManagerName(navigator.platform)}
+        </MenuItem>
+      ) : null}
+      {canOpenVsCode ? (
+        <MenuItem
+          onClick={() =>
+            void openInEditor({
+              environmentId: group.environmentId,
+              input: { cwd: group.workspaceRoot, editor: "vscode" },
+            })
+          }
+        >
+          <VisualStudioCode />
+          Open in VS Code
+        </MenuItem>
       ) : null}
       <MenuSeparator />
       {canOrganizeProjectGroup(group.memberProjects) ? (
@@ -251,10 +264,10 @@ function EditProjectDialog({
   onOpenSettings: () => void;
 }) {
   const { updateProjectGroup } = useProjectGroupUpdate();
-  const ones = useOnesProjectLinks(group.environmentId, group.workspaceRoot);
+  const links = useIssueProjectLinks(group.environmentId, group.workspaceRoot);
   const [name, setName] = useState(group.displayName);
   const [icon, setIcon] = useState<ProjectIconOverride | null>(group.projectIcon ?? null);
-  const [onesIds, setOnesIds] = useState<ReadonlyArray<string> | null>(null);
+  const [selection, setSelection] = useState<IssueLinkSelection>({});
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -271,7 +284,7 @@ function EditProjectDialog({
       Object.keys(update).length === 0 ||
       (await updateProjectGroup(group.memberProjects, update, "Failed to update project"))._tag ===
         "Success";
-    const linked = saved && (onesIds === null || (await ones.save(onesIds)));
+    const linked = saved && (await links.save(selection));
     setBusy(false);
     if (linked) onClose();
   };
@@ -308,18 +321,15 @@ function EditProjectDialog({
                 }}
               />
             </div>
-            {ones.enabled ? (
-              <div className="grid gap-1.5">
-                <span className="text-xs font-medium text-muted-foreground">ONES projects</span>
-                <OnesProjectsField
-                  projects={ones.projects}
-                  error={ones.error}
-                  value={onesIds ?? ones.linkedIds}
-                  onChange={setOnesIds}
-                  disabled={busy}
-                />
-              </div>
-            ) : null}
+            <IssueProjectLinksFields
+              environmentId={group.environmentId}
+              trackers={links.trackers}
+              value={(trackerId) => selection[trackerId] ?? links.linkedIds(trackerId)}
+              onChange={(trackerId, ids) =>
+                setSelection((previous) => ({ ...previous, [trackerId]: ids }))
+              }
+              disabled={busy}
+            />
           </div>
         </DialogPanel>
         <DialogFooter>

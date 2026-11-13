@@ -106,14 +106,14 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
                 <Button
                   size="icon-xs"
                   variant="ghost-muted"
-                  aria-label={`New thread from a ONES issue in ${group.displayName}`}
+                  aria-label={`New thread from an issue in ${group.displayName}`}
                   onClick={() => setIssuePickerOpen(true)}
                 />
               }
             >
               <TicketIcon aria-hidden />
             </TooltipTrigger>
-            <TooltipPopup>New thread from a ONES issue</TooltipPopup>
+            <TooltipPopup>New thread from an issue</TooltipPopup>
           </Tooltip>
         ) : null}
         <ProjectFolderMenu group={group} onOpenSettings={props.onOpenSettings} />

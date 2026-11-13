@@ -1,4 +1,4 @@
-import type { EnvironmentId, IssueTrackerProject } from "@t3tools/contracts";
+import type { EnvironmentId, IssueTrackerConnection } from "@t3tools/contracts";
 import { ChevronDownIcon } from "lucide-react";
 import { useState } from "react";
 
@@ -16,34 +16,53 @@ import { Menu, MenuCheckboxItem, MenuPopup, MenuTrigger } from "~/components/ui/
 import { useServerConfigs } from "~/state/entities";
 import { serverEnvironment } from "~/state/server";
 import { useAtomCommand } from "~/state/use-atom-command";
-import { onesConfigured, useIssueTrackerCatalog } from "./useIssueTrackerCatalog";
+import {
+  issueTrackerLabel,
+  linkableIssueTrackers,
+  useIssueTrackerCatalog,
+} from "./useIssueTrackerCatalog";
 
 export const comparablePath = (path: string) =>
   path.replaceAll("\\", "/").replace(/\/+/g, "/").replace(/\/$/, "").toLowerCase();
 
-/** The ONES projects bound to one T4 project's workspace root, and a writer for that set. */
-export function useOnesProjectLinks(environmentId: EnvironmentId, workspaceRoot: string) {
+/** Picked tracker project ids per tracker id; a missing tracker means "unchanged". */
+export type IssueLinkSelection = Readonly<Record<string, ReadonlyArray<string>>>;
+
+/** The tracker projects bound to one T4 project's workspace root, and a writer for them. */
+export function useIssueProjectLinks(environmentId: EnvironmentId, workspaceRoot: string) {
   const settings = useServerConfigs().get(environmentId)?.settings;
-  const enabled = onesConfigured(settings);
-  const tracker = useIssueTrackerCatalog(environmentId, enabled);
+  const trackers = linkableIssueTrackers(settings);
   const updateSettings = useAtomCommand(serverEnvironment.updateSettings, { reportFailure: true });
   const root = comparablePath(workspaceRoot);
   const bindings = settings?.issueProjectBindings ?? [];
-  const linkedIds = bindings
-    .filter((binding) => comparablePath(binding.localPath) === root)
-    .map((binding) => binding.onesProjectUuid);
+  const linkedIds = (trackerId: string) =>
+    bindings
+      .filter((b) => b.trackerId === trackerId && comparablePath(b.localPath) === root)
+      .map((b) => b.onesProjectUuid);
 
-  const save = async (ids: ReadonlyArray<string>): Promise<boolean> => {
-    if (!settings) return true;
-    if (ids.length === linkedIds.length && ids.every((id) => linkedIds.includes(id))) return true;
-    const others = bindings.filter((binding) => comparablePath(binding.localPath) !== root);
+  const save = async (selection: IssueLinkSelection): Promise<boolean> => {
+    const changed = Object.entries(selection).filter(([trackerId, ids]) => {
+      const linked = linkedIds(trackerId);
+      return ids.length !== linked.length || !ids.every((id) => linked.includes(id));
+    });
+    if (!settings || changed.length === 0) return true;
+    const replaced = new Set(changed.map(([trackerId]) => trackerId));
+    const others = bindings.filter(
+      (b) => !(replaced.has(b.trackerId) && comparablePath(b.localPath) === root),
+    );
     const result = await updateSettings({
       environmentId,
       input: {
         patch: {
           issueProjectBindings: [
             ...others,
-            ...ids.map((onesProjectUuid) => ({ onesProjectUuid, localPath: workspaceRoot })),
+            ...changed.flatMap(([trackerId, ids]) =>
+              ids.map((onesProjectUuid) => ({
+                onesProjectUuid,
+                trackerId,
+                localPath: workspaceRoot,
+              })),
+            ),
           ],
         },
       },
@@ -51,25 +70,49 @@ export function useOnesProjectLinks(environmentId: EnvironmentId, workspaceRoot:
     return result._tag === "Success";
   };
 
-  return {
-    enabled,
-    projects: tracker.catalog?.projects ?? null,
-    error: tracker.error,
-    linkedIds,
-    save,
-  };
+  return { trackers, linkedIds, save };
 }
 
-export function OnesProjectsField(props: {
-  projects: ReadonlyArray<IssueTrackerProject> | null;
-  error: string | null;
-  value: ReadonlyArray<string>;
-  onChange: (ids: ReadonlyArray<string>) => void;
+/** One labelled project picker per linkable tracker. */
+export function IssueProjectLinksFields(props: {
+  environmentId: EnvironmentId;
+  trackers: ReadonlyArray<IssueTrackerConnection>;
+  value: (trackerId: string) => ReadonlyArray<string>;
+  onChange: (trackerId: string, ids: ReadonlyArray<string>) => void;
   disabled?: boolean;
 }) {
-  const { projects, value } = props;
-  if (props.error) return <p className="text-xs text-destructive">{props.error}</p>;
-  if (projects === null) return <p className="text-xs text-muted-foreground">Loading…</p>;
+  return (
+    <div className="grid gap-3">
+      {props.trackers.map((tracker) => (
+        <div key={tracker.id} className="grid gap-1.5">
+          <span className="text-xs font-medium text-muted-foreground">
+            {issueTrackerLabel(tracker)} projects
+          </span>
+          <TrackerProjectsField
+            environmentId={props.environmentId}
+            trackerId={tracker.id}
+            value={props.value(tracker.id)}
+            onChange={(ids) => props.onChange(tracker.id, ids)}
+            disabled={props.disabled}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TrackerProjectsField(props: {
+  environmentId: EnvironmentId;
+  trackerId: string;
+  value: ReadonlyArray<string>;
+  onChange: (ids: ReadonlyArray<string>) => void;
+  disabled?: boolean | undefined;
+}) {
+  const { catalog, error } = useIssueTrackerCatalog(props.environmentId, props.trackerId);
+  const { value } = props;
+  if (error) return <p className="text-xs text-destructive">{error}</p>;
+  if (catalog === null) return <p className="text-xs text-muted-foreground">Loading…</p>;
+  const { projects } = catalog;
   const names = projects.filter((project) => value.includes(project.id)).map((p) => p.name);
   return (
     <Menu>
@@ -79,10 +122,10 @@ export function OnesProjectsField(props: {
       >
         <span className="min-w-0 flex-1 truncate text-left">
           {projects.length === 0
-            ? "No ONES projects"
+            ? "No projects"
             : names.length > 0
               ? names.join(", ")
-              : "Select ONES projects"}
+              : "Select projects"}
         </span>
         <ChevronDownIcon />
       </MenuTrigger>
@@ -106,19 +149,19 @@ export function OnesProjectsField(props: {
   );
 }
 
-/** Picks the ONES projects linked to one T4 project; opened from the project folder's "…" menu. */
-export function OnesProjectLinkDialog(props: {
+/** Picks the tracker projects linked to one T4 project; opened from the project folder's "…" menu. */
+export function IssueProjectLinkDialog(props: {
   environmentId: EnvironmentId;
   workspaceRoot: string;
   projectName: string;
   onClose: () => void;
 }) {
-  const links = useOnesProjectLinks(props.environmentId, props.workspaceRoot);
-  const [selected, setSelected] = useState<ReadonlyArray<string> | null>(null);
+  const links = useIssueProjectLinks(props.environmentId, props.workspaceRoot);
+  const [selection, setSelection] = useState<IssueLinkSelection>({});
   const [busy, setBusy] = useState(false);
   const save = async () => {
     setBusy(true);
-    const saved = selected === null || (await links.save(selected));
+    const saved = await links.save(selection);
     setBusy(false);
     if (saved) props.onClose();
   };
@@ -126,17 +169,19 @@ export function OnesProjectLinkDialog(props: {
     <Dialog open onOpenChange={(open) => !open && props.onClose()}>
       <DialogPopup className="w-full sm:w-[28rem]">
         <DialogHeader>
-          <DialogTitle>ONES projects</DialogTitle>
+          <DialogTitle>Link issue projects</DialogTitle>
           <DialogDescription>
-            Pick issues from these ONES projects in {props.projectName}.
+            Pick issues from these projects in {props.projectName}.
           </DialogDescription>
         </DialogHeader>
         <DialogPanel>
-          <OnesProjectsField
-            projects={links.projects}
-            error={links.error}
-            value={selected ?? links.linkedIds}
-            onChange={setSelected}
+          <IssueProjectLinksFields
+            environmentId={props.environmentId}
+            trackers={links.trackers}
+            value={(trackerId) => selection[trackerId] ?? links.linkedIds(trackerId)}
+            onChange={(trackerId, ids) =>
+              setSelection((previous) => ({ ...previous, [trackerId]: ids }))
+            }
             disabled={busy}
           />
         </DialogPanel>
@@ -144,7 +189,7 @@ export function OnesProjectLinkDialog(props: {
           <Button variant="ghost" onClick={props.onClose} disabled={busy}>
             Cancel
           </Button>
-          <Button onClick={() => void save()} disabled={busy || links.error !== null}>
+          <Button onClick={() => void save()} disabled={busy}>
             Save
           </Button>
         </DialogFooter>

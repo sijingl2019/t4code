@@ -216,11 +216,7 @@ function MemoryModelRow() {
             onCheckedChange={(checked) =>
               setModel(
                 checked
-                  ? createModelSelection(
-                      settings.textGenerationModelSelection.instanceId,
-                      settings.textGenerationModelSelection.model,
-                      settings.textGenerationModelSelection.options,
-                    )
+                  ? createModelSelection(selection.instanceId, selection.model, selection.options)
                   : null,
               )
             }

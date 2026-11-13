@@ -1,6 +1,12 @@
-import { ArrowLeftIcon, ArrowRightIcon, ChartNoAxesColumnIcon, SettingsIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  ChartNoAxesColumnIcon,
+  ListTodoIcon,
+  SettingsIcon,
+} from "lucide-react";
 import type { ReactNode } from "react";
-import { memo } from "react";
+import { memo, useState } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 
 import { useAtomValue } from "@effect/atom-react";
@@ -11,9 +17,10 @@ import {
   useCanNavigateHistory,
   type HistoryDirection,
 } from "../../navigationHistory";
-import { primaryServerKeybindingsAtom } from "../../state/server";
+import { environmentServerConfigsAtom, primaryServerKeybindingsAtom } from "../../state/server";
+import { IssueBoardDialog } from "../../issues/IssueBoardDialog";
 import { cn } from "../../lib/utils";
-import { usePullRequestsSupported } from "../../state/environments";
+import { usePrimaryEnvironmentId, usePullRequestsSupported } from "../../state/environments";
 import {
   resolveEnvironmentIdentificationPillLabel,
   resolveSidebarStageBackdropVariant,
@@ -227,6 +234,13 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
     select: (location) => isSidebarUtilityPage(location.pathname),
   });
   const pullRequestsSupported = usePullRequestsSupported();
+  // t4code: the issue board is offered while auto development is on.
+  const primaryEnvironmentId = usePrimaryEnvironmentId();
+  const serverConfigs = useAtomValue(environmentServerConfigsAtom);
+  const issueAutoDevEnabled =
+    primaryEnvironmentId !== null &&
+    serverConfigs.get(primaryEnvironmentId)?.settings.issueAutoDev.enabled === true;
+  const [issueBoardOpen, setIssueBoardOpen] = useState(false);
   const closeMobileSidebar = () => {
     if (isMobile) {
       setOpenMobile(false);
@@ -284,6 +298,20 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
             label="Usage"
             onClick={handleUsageClick}
           />
+          {issueAutoDevEnabled && primaryEnvironmentId ? (
+            <>
+              <SidebarUtilityItem
+                icon={<ListTodoIcon />}
+                label="Issues"
+                onClick={() => setIssueBoardOpen(true)}
+              />
+              <IssueBoardDialog
+                open={issueBoardOpen}
+                onOpenChange={setIssueBoardOpen}
+                environmentId={primaryEnvironmentId}
+              />
+            </>
+          ) : null}
         </>
       )}
       <SidebarThreadUndoNotice />

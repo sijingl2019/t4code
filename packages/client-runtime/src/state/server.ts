@@ -1693,6 +1693,18 @@ export function createServerEnvironmentAtoms<R, E>(
       label: "environment-data:issues:catalog",
       tag: WS_METHODS.issuesCatalog,
     }),
+    getIssueBoard: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:issues:board",
+      tag: WS_METHODS.issuesBoard,
+    }),
+    executeIssue: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:issues:execute",
+      tag: WS_METHODS.issuesExecute,
+    }),
+    setIssueStatus: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:issues:set-status",
+      tag: WS_METHODS.issuesSetStatus,
+    }),
     getMemoryStats: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:memory:get-stats",
       tag: WS_METHODS.memoryGetStats,

@@ -2,14 +2,39 @@ import {
   type AtomCommandResult,
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
-import type { EnvironmentId, IssueTrackerCatalog, ServerSettings } from "@t3tools/contracts";
+import {
+  issueTrackersOf,
+  type EnvironmentId,
+  type IssueTrackerCatalog,
+  type IssueTrackerConnection,
+  type IssueTrackerKind,
+  type ServerSettings,
+} from "@t3tools/contracts";
 import { useEffect, useState } from "react";
 
 import { serverEnvironment } from "../state/server";
 import { useAtomCommand } from "../state/use-atom-command";
 
-export const onesConfigured = (settings: ServerSettings | undefined): boolean =>
-  !!settings && settings.ones.baseUrl !== "" && settings.ones.email !== "";
+export const ISSUE_TRACKER_KIND_LABELS: Record<IssueTrackerKind, string> = {
+  ones: "ONES",
+  jira: "Jira",
+};
+
+/** Kinds the server can fetch issues from; Jira is selectable but not wired up yet. */
+export const supportedIssueTrackerKind = (kind: IssueTrackerKind) => kind === "ones";
+
+export const issueTrackerLabel = (tracker: IssueTrackerConnection) =>
+  tracker.name || ISSUE_TRACKER_KIND_LABELS[tracker.kind];
+
+/** Trackers whose projects can be linked: supported and with a saved connection. */
+export const linkableIssueTrackers = (
+  settings: ServerSettings | undefined,
+): ReadonlyArray<IssueTrackerConnection> =>
+  settings
+    ? issueTrackersOf(settings).filter(
+        (t) => supportedIssueTrackerKind(t.kind) && t.baseUrl !== "" && t.email !== "",
+      )
+    : [];
 
 type Loaded = { catalog: IssueTrackerCatalog | null; error: string | null };
 const toLoaded = (result: AtomCommandResult<IssueTrackerCatalog, unknown>): Loaded => {
@@ -17,35 +42,38 @@ const toLoaded = (result: AtomCommandResult<IssueTrackerCatalog, unknown>): Load
   const error = squashAtomCommandFailure(result);
   return {
     catalog: null,
-    error: `Could not load from ONES: ${error instanceof Error ? error.message : String(error)}`,
+    error: `Could not load from the tracker: ${error instanceof Error ? error.message : String(error)}`,
   };
 };
 
-/** Tracker projects and statuses for the configured account; `catalog` is `null` until loaded. */
-export function useIssueTrackerCatalog(environmentId: EnvironmentId | null, enabled: boolean) {
+/** One tracker's projects and statuses; `catalog` is `null` until loaded or with no tracker. */
+export function useIssueTrackerCatalog(
+  environmentId: EnvironmentId | null,
+  trackerId: string | null,
+) {
   const loadCatalog = useAtomCommand(serverEnvironment.getIssueTrackerCatalog);
   const [loaded, setLoaded] = useState<Loaded>({ catalog: null, error: null });
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- fetches the project list from the tracker
   useEffect(() => {
-    if (!enabled || !environmentId) return;
+    if (!trackerId || !environmentId) return;
     let cancelled = false;
-    void loadCatalog({ environmentId, input: {} }).then((result) => {
+    void loadCatalog({ environmentId, input: { trackerId } }).then((result) => {
       if (!cancelled) setLoaded(toLoaded(result));
     });
     return () => {
       cancelled = true;
     };
-  }, [enabled, environmentId, loadCatalog]);
+  }, [trackerId, environmentId, loadCatalog]);
 
   const reload = async () => {
-    if (!enabled || !environmentId) return;
-    setLoaded(toLoaded(await loadCatalog({ environmentId, input: {} })));
+    if (!trackerId || !environmentId) return;
+    setLoaded(toLoaded(await loadCatalog({ environmentId, input: { trackerId } })));
   };
 
   return {
-    catalog: enabled ? loaded.catalog : null,
-    error: enabled ? loaded.error : null,
+    catalog: trackerId ? loaded.catalog : null,
+    error: trackerId ? loaded.error : null,
     reload,
   };
 }

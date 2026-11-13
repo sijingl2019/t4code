@@ -21,6 +21,9 @@ export class IssueTrackerClientError extends Error {
 
 export type Json = any;
 
+/** An issue as the adapter sees it; IssueService stamps the tracker connection id. */
+export type TrackerIssue = Omit<Issue, "trackerId">;
+
 const TIMEOUT_MS = 30_000;
 
 export abstract class IssueTrackerClient {
@@ -47,11 +50,13 @@ export abstract class IssueTrackerClient {
    * Issues assigned to the signed-in user, narrowed by `filter` (the adapter's own "not done" rule
    * for `default`). Comments and attachments may be left empty.
    */
-  abstract listMyIssues(filter: IssueStatusFilter): Promise<Issue[]>;
+  abstract listMyIssues(filter: IssueStatusFilter): Promise<TrackerIssue[]>;
   /** One issue with comments and attachments. */
-  abstract loadIssue(id: string, status?: string): Promise<Issue>;
+  abstract loadIssue(id: string, status?: string): Promise<TrackerIssue>;
   /** Posts `text` verbatim (no markup interpretation) as a comment on the issue. */
   abstract addComment(id: string, text: string): Promise<void>;
+  /** Moves the issue to `statusId` through its workflow; false when no transition leads there. */
+  abstract moveToStatus(id: string, statusId: string): Promise<boolean>;
 
   async testConnection(): Promise<string> {
     this.loggedIn = false;

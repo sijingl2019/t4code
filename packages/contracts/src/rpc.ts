@@ -37,7 +37,7 @@ import * as Schema from "effect/Schema";
 import * as Rpc from "effect/rpc/Rpc";
 import * as RpcGroup from "effect/rpc/RpcGroup";
 import * as RpcMiddleware from "effect/rpc/RpcMiddleware";
-import { NonNegativeInt, TrimmedNonEmptyString } from "./baseSchemas.ts";
+import { NonNegativeInt, ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
 import {
   ProviderAuthCancelInput,
   ProviderAuthCompleteInput,
@@ -392,6 +392,10 @@ import {
   IssueTrackerCatalog,
   IssueTestConnectionResult,
   IssueTrackerError,
+  IssueTrackerInput,
+  IssueBoard,
+  IssueExecuteInput,
+  IssueSetStatusInput,
 } from "./issues.ts";
 import { MemoryEmptyInput, MemoryStats, MemoryStoreError } from "./memory.ts";
 import {
@@ -620,6 +624,9 @@ export const WS_METHODS = {
   issuesGet: "issues.get",
   issuesTestConnection: "issues.testConnection",
   issuesCatalog: "issues.catalog",
+  issuesBoard: "issues.board",
+  issuesExecute: "issues.execute",
+  issuesSetStatus: "issues.setStatus",
   memoryGetStats: "memory.getStats",
   memoryClear: "memory.clear",
   projectCloneStart: "projectClone.start",
@@ -1326,14 +1333,34 @@ const WsIssuesGetRpc = Rpc.make(WS_METHODS.issuesGet, {
 });
 
 const WsIssuesTestConnectionRpc = Rpc.make(WS_METHODS.issuesTestConnection, {
-  payload: Schema.Struct({}),
+  payload: IssueTrackerInput,
   success: IssueTestConnectionResult,
   error: EnvironmentAuthorizationError,
 });
 
 const WsIssuesCatalogRpc = Rpc.make(WS_METHODS.issuesCatalog, {
-  payload: Schema.Struct({}),
+  payload: IssueTrackerInput,
   success: IssueTrackerCatalog,
+  error: Schema.Union([IssueTrackerError, EnvironmentAuthorizationError]),
+});
+
+const WsIssuesBoardRpc = Rpc.make(WS_METHODS.issuesBoard, {
+  payload: Schema.Struct({}),
+  success: IssueBoard,
+  error: Schema.Union([IssueTrackerError, EnvironmentAuthorizationError]),
+});
+
+// Starts (or returns the existing) thread for the issue in the project, without opening it.
+const WsIssuesExecuteRpc = Rpc.make(WS_METHODS.issuesExecute, {
+  payload: IssueExecuteInput,
+  success: ThreadId,
+  error: Schema.Union([IssueTrackerError, EnvironmentAuthorizationError]),
+});
+
+// False when the issue's workflow has no transition to that status.
+const WsIssuesSetStatusRpc = Rpc.make(WS_METHODS.issuesSetStatus, {
+  payload: IssueSetStatusInput,
+  success: Schema.Boolean,
   error: Schema.Union([IssueTrackerError, EnvironmentAuthorizationError]),
 });
 
@@ -2235,6 +2262,9 @@ export const WsRpcGroup = RpcGroup.make(
   WsIssuesGetRpc,
   WsIssuesTestConnectionRpc,
   WsIssuesCatalogRpc,
+  WsIssuesBoardRpc,
+  WsIssuesExecuteRpc,
+  WsIssuesSetStatusRpc,
   WsMemoryGetStatsRpc,
   WsMemoryClearRpc,
   WsProjectCloneStartRpc,

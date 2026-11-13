@@ -1,8 +1,12 @@
 import { hasAutoDevMarker, type Issue } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { autoDevIssueUuid, autoDevPollDue, buildIssuePrompt } from "./IssueService.ts";
-import { issueCommitMessage, parseIssuePrompt } from "./issueCommitMessage.ts";
+import { autoDevIssueRef, autoDevKey, autoDevPollDue, buildIssuePrompt } from "./IssueService.ts";
+import {
+  autoDevCommitMessage,
+  issueCommitMessage,
+  parseIssuePrompt,
+} from "./issueCommitMessage.ts";
 import { extractImages, OnesClient, textToOnesHtml } from "./OnesClient.ts";
 
 const issue: Issue = {
@@ -14,6 +18,7 @@ const issue: Issue = {
   status: "进行中",
   url: "https://ones.example/project/#/team/t/task/u1",
   trackerProjectId: "p1",
+  trackerId: "ones",
   updatedAt: "",
   comments: [{ author: "Ann", createdAt: "", text: "repro on 17.2" }],
   attachments: [],
@@ -35,10 +40,19 @@ describe("ONES issues", () => {
   });
 
   it("recognises auto-dev threads by their first message id", () => {
-    expect(autoDevIssueUuid("ones-auto-message:6wpqXE1b")).toBe("6wpqXE1b");
-    expect(autoDevIssueUuid("ones-auto-message:")).toBeNull();
-    expect(autoDevIssueUuid("msg-123")).toBeNull();
-    expect(autoDevIssueUuid(undefined)).toBeNull();
+    expect(autoDevIssueRef("ones-auto-message:6wpqXE1b")).toEqual({
+      trackerId: "ones",
+      issueUuid: "6wpqXE1b",
+    });
+    expect(autoDevIssueRef(`ones-auto-message:${autoDevKey("t2", "6wpqXE1b")}`)).toEqual({
+      trackerId: "t2",
+      issueUuid: "6wpqXE1b",
+    });
+    expect(autoDevKey("ones", "6wpqXE1b")).toBe("6wpqXE1b");
+    expect(autoDevIssueRef("ones-auto-message:")).toBeNull();
+    expect(autoDevIssueRef("ones-auto-message:t2/")).toBeNull();
+    expect(autoDevIssueRef("msg-123")).toBeNull();
+    expect(autoDevIssueRef(undefined)).toBeNull();
   });
 
   it("posts summaries as literal text in ONES comment HTML", () => {
@@ -120,10 +134,19 @@ describe("ONES issues", () => {
     const uuids = async (filter: Parameters<OnesClient["listMyIssues"]>[0]) =>
       (await client.listMyIssues(filter)).map((issue) => issue.uuid);
     expect(await uuids({ mode: "default", statusIds: [] })).toEqual(["a", "c"]);
+    // The board's status picker needs the id, not just the name.
+    expect(
+      (await client.listMyIssues({ mode: "include", statusIds: ["todo"] })).map((i) => i.statusId),
+    ).toEqual(["todo"]);
     expect(await uuids({ mode: "include", statusIds: ["dev"] })).toEqual(["b"]);
     expect(await uuids({ mode: "exclude", statusIds: ["todo"] })).toEqual(["b", "c"]);
     // Only the default asks ONES to drop the done category.
-    expect(queries.map((q) => q.includes("statusCategory_notIn"))).toEqual([true, false, false]);
+    expect(queries.map((q) => q.includes("statusCategory_notIn"))).toEqual([
+      true,
+      false,
+      false,
+      false,
+    ]);
   });
 
   it("reads uploaded files from task messages and downloads them via the presigned URL", async () => {
@@ -180,5 +203,9 @@ describe("ONES issues", () => {
     expect(issueCommitMessage(parsed!, "fix cookie expiry")).toBe("ONES-7 fix cookie expiry");
     expect(issueCommitMessage(parsed!, "ONES-7: done")).toBe("ONES-7: done");
     expect(parseIssuePrompt("just a normal request")).toBeNull();
+    const auto = autoDevCommitMessage(parsed!, "  Changed a.ts\nTests pass  ");
+    expect(auto).toBe("ONES-7 Fix login\n\nChanged a.ts\nTests pass");
+    // The Commit-button rule must not rewrite it again.
+    expect(issueCommitMessage(parsed!, auto)).toBe(auto);
   });
 });

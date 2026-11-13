@@ -49,6 +49,17 @@ export function issueCommitMessage(issue: ThreadIssue, typed: string | undefined
   return body === "" ? subject : `${subject}\n\n${body}`;
 }
 
+/** Auto-dev commit: `<key> <title>`, then the run summary (the text posted as the issue comment). */
+export function autoDevCommitMessage(
+  issue: { readonly key: string; readonly title: string },
+  summary: string,
+): string {
+  const subject = `${issue.key} ${issue.title}`;
+  // The git action caps commit messages at 10k characters.
+  const body = summary.trim().slice(0, 9_000).trim();
+  return body === "" ? subject : `${subject}\n\n${body}`;
+}
+
 /** The commit message to use for a thread, or `typed` unchanged when no issue rule applies. */
 export const resolveIssueCommitMessage = Effect.fn("resolveIssueCommitMessage")(
   function* (

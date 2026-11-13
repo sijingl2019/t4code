@@ -64,6 +64,8 @@ The sidebar brand mark draws "T3" as an SVG (`T3Wordmark`), which the script can
 `apps/web/src/components/sidebar/SidebarChrome.tsx` renders the text "T4" in its place; re-apply after a
 conflict there. The MCP server now advertises "T4 Code", so `packages/shared/src/t3McpToolPresentation.ts` matches
 `t[34]` in its display-name prefix regex.
+`README.md` starts with a T4 section (screenshot in `docs/t4/`) above upstream's text; on conflict keep
+that section and take upstream's below it.
 Code identifiers (`@t3tools/*`, `T3CODE_*`, `t3.json`, the worktree-local `.t3` dev dir), docs and
 the marketing site stay upstream's. Icons (`assets/{prod,dev}`, `apps/web/public`) were retouched
 from T3 to T4 by hand; on an icon conflict keep ours (`git checkout --ours`).
@@ -78,12 +80,17 @@ Features:
   `boringSidebarEnabled` defaults to `true` (`settings.ts`), `SidebarProjectFolderHeader.tsx`;
   projects with no threads still get a folder (`keepEmptyFolders` in `Sidebar.tsx`, upstream keeps only pinned ones); a collapsed folder hides all
   its threads, the open one too (upstream keeps the open thread visible; `projectFolders` in `Sidebar.tsx`).
-- Issue trackers, ONES only so far (server settings `ones`, `issueProjectBindings`,
-  `issueAutoDev`): service in `apps/server/src/issues/`. Trackers are adapters: `IssueTrackerClient.ts`
+- Issue trackers (server settings `issueTrackers`, `issueProjectBindings`, `issueAutoDev`): service in
+  `apps/server/src/issues/`. `issueTrackers` is a list of connections, each with a kind (`ones` or
+  `jira`; Jira is selectable and saved but has no adapter yet). `null` means unmigrated:
+  `issueTrackersOf` (contracts) then returns the legacy single `ones` setting as tracker id `ones`,
+  which keeps the `ones-password` secret slot (`settingsSecrets.ts`); bindings carry a `trackerId`
+  defaulting to `ones`, and auto-dev keys (`ones-auto:` / `ones-auto-message:`) stay the bare issue
+  uuid for that tracker and become `<trackerId>/<uuid>` for others. Trackers are adapters: `IssueTrackerClient.ts`
   is the base class (login session, 401 re-login, timed JSON requests, attachment downloads), each
   tracker subclasses it (`OnesClient.ts`) and registers in `issueTrackers.ts`; `IssueService` only sees
   the base class. A binding (`issueProjectBindings`) ties a tracker project id to a T4 project's
-  workspace root; one tracker project may have several. `ones.statusFilter` (default / include /
+  workspace root; one tracker project may have several. Each tracker's `statusFilter` (default / include /
   exclude by status id) narrows which assigned issues are listed; `issues.catalog` returns the
   tracker's projects and statuses for the settings UI. Auto development picks up issues whose
   description starts with `#!t4code` (`ISSUE_AUTO_DEV_MARKER`). While it is on, the Commit button's
@@ -91,18 +98,21 @@ Features:
   message gets the key prepended): `apps/server/src/issues/issueCommitMessage.ts`, hooked into
   `runStackedAction` in upstream `apps/server/src/git/GitManager.ts` (two lines marked `t4code`).
   Each `completed` run of an auto-dev thread (first message id `ones-auto-message:<uuid>`) posts its
-  last assistant message verbatim as an issue comment (`commentRunSummary` in `IssueService.ts`). RPCs `issues.*` in
+  last assistant message verbatim as an issue comment (`commentRunSummary` in `IssueService.ts`), then
+  commits and pushes the thread's checkout through `GitManager.runStackedAction` (`commit_push`) with
+  `<key> <title>` + that same summary (`autoDevCommitMessage`; the agent itself is told not to commit), then,
+  if the tracker's `doneStatusId` is set, moves the issue there via the matching workflow transition. RPCs `issues.*` in
   `packages/contracts/src/{issues,rpc}.ts`, scopes in `apps/server/src/auth/RpcAuthorization.ts`,
   handlers in `apps/server/src/ws.ts`, layer in
-  `apps/server/src/orchestration-v2/runtimeLayer.ts`, secrets in `apps/server/src/settingsSecrets.ts`, span aggregates in `apps/server/src/observability/RpcInstrumentation.ts`, mock layer in `apps/server/src/ws.test.ts`.
+  `apps/server/src/orchestration-v2/runtimeLayer.ts`, secrets in `apps/server/src/settingsSecrets.ts` (their paths listed in `serverSettings.test.ts` "strictly decoded" case), span aggregates in `apps/server/src/observability/RpcInstrumentation.ts`, mock layer in `apps/server/src/ws.test.ts`.
   Client: commands in `packages/client-runtime/src/state/server.ts`, guarded scopes in
-  `packages/contracts/src/clientRpcPermissions.ts`, settings form `OnesIssueSettings.tsx` (mounted in
-  `ProjectsSettings.tsx`, shown when no project is selected; lists tracker projects with a T4 project
-  multi-picker), "ONES projects" dialog opened from the project folder's "…" menu
-  (`OnesProjectLinkDialog` in `apps/web/src/issues/OnesProjectLinks.tsx`), issue picker `components/sidebar/OnesIssuePickerDialog.tsx` (opened from
+  `packages/contracts/src/clientRpcPermissions.ts`, "Issues" settings section `IssueSettings.tsx` (mounted in
+  `ProjectsSettings.tsx`, shown when no project is selected; one card per tracker with its tracker projects
+  and a T4 project multi-picker), "Link" dialog opened from the project folder's "…" menu
+  (`IssueProjectLinkDialog` in `apps/web/src/issues/OnesProjectLinks.tsx`), issue picker `components/sidebar/OnesIssuePickerDialog.tsx` (opened from
   `SidebarProjectFolderHeader.tsx`), attachments handed to the composer via
   `apps/web/src/issues/pendingIssueFiles.ts` (consumed in `ChatComposer.tsx`).
-- Sidebar project folder "…" menu (Pin / Edit / ONES projects / Open in File Explorer / Archive / Remove) in place of
+- Sidebar project folder "…" menu (Pin / Edit / Link Issues / Open in File Explorer / Open in VS Code / Archive / Remove) in place of
   the collapse chevron, with an Edit project dialog (name, icon, ONES projects, link to full settings):
   `components/sidebar/ProjectFolderMenu.tsx`, mounted in `SidebarProjectFolderHeader.tsx`
   (`onOpenSettings` passed from `Sidebar.tsx`).
@@ -125,6 +135,14 @@ Features:
 - Citation comment popover: clicking away or moving focus out acts like Cancel (draft discarded, a
   just-cited chip removed); upstream saves the draft. `assistantCitationCommentDismissal.ts` (one
   line) and the `onOpenChange` block in `AssistantCitationChip.tsx`, both marked `t4code`.
+- Running-only thread filter: a header toggle next to the project filter in `Sidebar.tsx` (`runningOnly`,
+  marked `t4code`) keeps only threads with an active runtime and hides empty folders.
+- Issue board (footer "Issues" button in `SidebarChrome.tsx`, shown while `issueAutoDev.enabled`):
+  `apps/web/src/issues/IssueBoardDialog.tsx` lists the user's issues in bound tracker projects
+  (`issues.board`), changes their status (`issues.setStatus`, via `moveToStatus`), and runs one
+  (`issues.execute` → `launchAuto`, same `ones-auto:` command id, so one thread per issue). A row's dot
+  reads the issue's thread (found by its `ones-auto-message:` first message id) from the client's
+  thread shells: red failed, yellow working (pulsing), green completed.
 - Terminal font picker: already upstream (`TypographySettings.tsx`, `FontFamilyPicker.tsx`).
 
 ## Desktop dev
@@ -139,7 +157,9 @@ Endpoints are the ones verified against the real private deployment in `e:/works
 (`docs/ones-api-notes.md` there). `apps/server/src/issues/OnesClient.ts` is a direct port; do not switch
 to unverified endpoints (e.g. `project_in` filters) without probing the server first. Verified here
 since: graphql `projects { uuid name }`, task fields `project{uuid} descriptionText serverUpdateStamp`,
-`GET .../team/{team}/task_statuses`, `POST .../task/{uuid}/send_message` (`{ uuid: <8 random chars>, content_type: 1, text: <html> }`), `GET .../task/{uuid}/messages` (`{ messages: [...] }`, uploads are
+`GET .../team/{team}/task_statuses`, `POST .../task/{uuid}/send_message` (`{ uuid: <8 random chars>, content_type: 1, text: <html> }`),
+`GET .../task/{uuid}/transitions` (`{ transitions: [{ uuid, end_status_uuid }] }` from the current status),
+`POST .../task/{uuid}/new_transit` (`{ transition_uuid }`), `GET .../task/{uuid}/messages` (`{ messages: [...] }`, uploads are
 `discussion` messages with a `resource`), and `GET .../res/attachment/{uuid}` (JSON metadata whose
 presigned `url` serves the bytes).
 

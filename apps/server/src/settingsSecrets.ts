@@ -5,6 +5,8 @@ import {
   OnesSettings,
   CodexSettings,
   EasDeviceHostConfig,
+  type IssueTrackerConnection,
+  LEGACY_ISSUE_TRACKER_ID,
   type ProviderInstanceConfig,
   type ServerSettings,
   type SettingsSecretValue,
@@ -261,6 +263,16 @@ function mapSecretFieldGroups(
       onesSecretFields,
       (field) => `ones-${field}`,
     ) as ServerSettings["ones"],
+    // The migrated legacy tracker keeps the old `ones-*` slot so its saved password carries over.
+    issueTrackers:
+      settings.issueTrackers?.map(
+        (tracker) =>
+          mapFields(tracker, onesSecretFields, (field) =>
+            tracker.id === LEGACY_ISSUE_TRACKER_ID
+              ? `ones-${field}`
+              : `issue-tracker-${encode(tracker.id)}-${field}`,
+          ) as IssueTrackerConnection,
+      ) ?? null,
     providerInstances,
     sourceControlHosts,
     usageLimitSources,

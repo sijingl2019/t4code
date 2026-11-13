@@ -2823,11 +2823,16 @@ export const layerWsRpc = (
               ),
           }),
         [WS_METHODS.issuesList]: (input) => issueService.list(input.projectId),
-        [WS_METHODS.issuesGet]: (input) => issueService.get(input.issueUuid),
-        [WS_METHODS.issuesTestConnection]: () => issueService.testConnection,
+        [WS_METHODS.issuesGet]: (input) => issueService.get(input.issueUuid, input.trackerId),
+        [WS_METHODS.issuesTestConnection]: (input) => issueService.testConnection(input.trackerId),
         [WS_METHODS.memoryGetStats]: () => memoryService.stats,
         [WS_METHODS.memoryClear]: () => memoryService.clear,
-        [WS_METHODS.issuesCatalog]: () => issueService.catalog,
+        [WS_METHODS.issuesCatalog]: (input) => issueService.catalog(input.trackerId),
+        [WS_METHODS.issuesBoard]: () => issueService.board(),
+        [WS_METHODS.issuesExecute]: (input) =>
+          issueService.execute(input.trackerId, input.issueUuid, input.projectId),
+        [WS_METHODS.issuesSetStatus]: (input) =>
+          issueService.setStatus(input.trackerId, input.issueUuid, input.statusId),
         [WS_METHODS.projectsEnsureScratch]: () =>
           managedFolders.ensureScratchProject.pipe(
             Effect.mapError(
