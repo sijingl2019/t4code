@@ -6,7 +6,7 @@ import {
   SettingsIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { memo, useState } from "react";
+import { memo } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 
 import { useAtomValue } from "@effect/atom-react";
@@ -18,7 +18,6 @@ import {
   type HistoryDirection,
 } from "../../navigationHistory";
 import { environmentServerConfigsAtom, primaryServerKeybindingsAtom } from "../../state/server";
-import { IssueBoardDialog } from "../../issues/IssueBoardDialog";
 import { cn } from "../../lib/utils";
 import { usePrimaryEnvironmentId, usePullRequestsSupported } from "../../state/environments";
 import {
@@ -240,7 +239,6 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
   const issueAutoDevEnabled =
     primaryEnvironmentId !== null &&
     serverConfigs.get(primaryEnvironmentId)?.settings.issueAutoDev.enabled === true;
-  const [issueBoardOpen, setIssueBoardOpen] = useState(false);
   const closeMobileSidebar = () => {
     if (isMobile) {
       setOpenMobile(false);
@@ -293,26 +291,21 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
               onClick={handlePullRequestsClick}
             />
           ) : null}
+          {issueAutoDevEnabled ? (
+            <SidebarUtilityItem
+              icon={<ListTodoIcon />}
+              label="Issues"
+              onClick={() => {
+                closeMobileSidebar();
+                void navigate({ to: "/issues" });
+              }}
+            />
+          ) : null}
           <SidebarUtilityItem
             icon={<ChartNoAxesColumnIcon />}
             label="Usage"
             onClick={handleUsageClick}
-          />
-          {issueAutoDevEnabled && primaryEnvironmentId ? (
-            <>
-              <SidebarUtilityItem
-                icon={<ListTodoIcon />}
-                label="Issues"
-                onClick={() => setIssueBoardOpen(true)}
-              />
-              <IssueBoardDialog
-                open={issueBoardOpen}
-                onOpenChange={setIssueBoardOpen}
-                environmentId={primaryEnvironmentId}
-              />
-            </>
-          ) : null}
-        </>
+          />        </>
       )}
       <SidebarThreadUndoNotice />
       <SidebarUpdatePill />

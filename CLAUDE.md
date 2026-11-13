@@ -142,7 +142,9 @@ Features:
 - Running-only thread filter: a header toggle next to the project filter in `Sidebar.tsx` (`runningOnly`,
   marked `t4code`) keeps only threads with an active runtime and hides empty folders.
 - Issue board (footer "Issues" button in `SidebarChrome.tsx`, shown while `issueAutoDev.enabled`):
-  `apps/web/src/issues/IssueBoardDialog.tsx` lists the user's issues in bound tracker projects
+  a `/issues` page like `/pull-requests` (route `routes/_chat.issues.tsx`, listed in
+  `isSidebarUtilityPage` in `sidebar/mainAppLocation.ts`, marked `t4code`).
+  `apps/web/src/issues/IssueBoardPage.tsx` lists the user's issues in bound tracker projects
   (`issues.board`), changes their status (`issues.setStatus`, via `moveToStatus`), and runs one
   (`issues.execute` → `launchAuto`, same `ones-auto:` command id, so one thread per issue). A row's dot
   reads the issue's thread (found by its `ones-auto-message:` first message id) from the client's
