@@ -270,6 +270,10 @@ import {
   sidebarFolderRowId,
 } from "./sidebar/SidebarProjectFolderHeader";
 import {
+  SidebarArchivedShelfHeader,
+  useArchivedShelfExpanded,
+} from "./sidebar/SidebarArchivedShelf";
+import {
   SidebarDragBoundary,
   SidebarSectionHeader,
   SidebarSectionPlaceholder,
@@ -466,6 +470,7 @@ function useSidebarThreads(input: {
   );
   // Shared with the old per-project sidebar, so folders keep their open state.
   const projectExpandedById = useUiStateStore((store) => store.projectExpandedById);
+  const [archivedShelfExpanded, setArchivedShelfExpanded] = useArchivedShelfExpanded(); // t4code
   const setProjectExpanded = useUiStateStore((store) => store.setProjectExpanded);
   const [settledTail, setSettledTail] = useState({
     scopeKey: projectScopeKey,
@@ -527,10 +532,9 @@ function useSidebarThreads(input: {
     folderGroups === null
       ? null
       : groupSidebarThreadsByProject(folderGroups, activeThreads, keepEmpty).map((folder) => {
-          const collapsed = !resolveProjectExpanded(
-            projectExpandedById,
-            sidebarFolderExpansionKeys(folder.group),
-          );
+          const collapsed =
+            (folder.group.archived && !archivedShelfExpanded) || // t4code: closed Archived shelf
+            !resolveProjectExpanded(projectExpandedById, sidebarFolderExpansionKeys(folder.group));
           return {
             group: folder.group,
             collapsed,
@@ -585,6 +589,8 @@ function useSidebarThreads(input: {
     workingShelfExpanded,
     toggleWorkingShelf: () => setWorkingShelfExpanded((value) => !value),
     projectFolders,
+    archivedShelfExpanded,
+    toggleArchivedShelf: () => setArchivedShelfExpanded((value) => !value),
     toggleProjectFolder: (group: SidebarProjectSnapshot) => {
       const keys = sidebarFolderExpansionKeys(group);
       setProjectExpanded(keys, !resolveProjectExpanded(projectExpandedById, keys));
@@ -1325,6 +1331,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     workingShelfExpanded,
     toggleWorkingShelf,
     projectFolders,
+    archivedShelfExpanded,
+    toggleArchivedShelf,
     toggleProjectFolder,
     renderedSettledThreads,
     visibleSnoozedThreads,
@@ -1353,8 +1361,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           [...scopeGroups, ...projectGroups.filter((project) => project.archived)]
         : scopedProjectGroups
       : null,
-    keepEmptyFolders: (group) =>
-      !runningOnly && (scopedProjectGroups.length > 0 || !group.archived),
+    // t4code: archived projects keep a folder too, inside the Archived shelf.
+    keepEmptyFolders: () => !runningOnly,
   });
 
   // Ranked across environments as the palette ranks them, so one
@@ -3467,8 +3475,32 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           items.push(renderThreadRow(threadByKey.get(item.key)!, item.section));
                           continue;
                         }
-                        if (projectFolders !== null && item.marker === "active-placeholder") {
-                          for (const folder of projectFolders) {
+                        // t4code: archived folders sit in their own shelf right above Settled.
+                        const archivedFolders =
+                          projectFolders?.filter((folder) => folder.group.archived) ?? [];
+                        const bottomShelvesEmpty =
+                          workingThreads.length + snoozedThreads.length === 0;
+                        if (item.marker === "settled-header" && archivedFolders.length > 0) {
+                          items.push(
+                            <SidebarArchivedShelfHeader
+                              key="archived-shelf-header"
+                              className={cn(bottomShelvesEmpty && "mt-auto")}
+                              count={archivedFolders.length}
+                              expanded={archivedShelfExpanded}
+                              onToggle={toggleArchivedShelf}
+                            />,
+                          );
+                        }
+                        const folderGroups =
+                          projectFolders === null
+                            ? null
+                            : item.marker === "active-placeholder"
+                              ? projectFolders.filter((folder) => !folder.group.archived)
+                              : item.marker === "settled-header" && archivedShelfExpanded
+                                ? archivedFolders
+                                : null;
+                        if (folderGroups !== null) {
+                          for (const folder of folderGroups) {
                             items.push(
                               <SidebarProjectFolderHeader
                                 key={`project-folder:${folder.group.projectKey}`}
@@ -3491,7 +3523,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               );
                             }
                           }
-                          continue;
+                          if (item.marker === "active-placeholder") continue;
                         }
                         switch (item.marker) {
                           case "pinned-header":
@@ -3570,7 +3602,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                 key="settled-shelf-header"
                                 marker="settled-header"
                                 className={cn(
-                                  workingThreads.length + snoozedThreads.length === 0 && "mt-auto",
+                                  bottomShelvesEmpty &&
+                                    archivedFolders.length === 0 && // t4code
+                                    "mt-auto",
                                 )}
                                 label="Settled"
                                 count={settledCount}

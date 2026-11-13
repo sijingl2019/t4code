@@ -1384,6 +1384,10 @@ export const OnesSettings = Schema.Struct({
   ),
   /** Status an auto-dev issue moves to after a completed run; empty leaves the status alone. */
   doneStatusId: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
+  /** Per tracker project override of `doneStatusId`; workflows differ between projects. */
+  projectDoneStatusIds: Schema.Record(TrimmedNonEmptyString, TrimmedNonEmptyString).pipe(
+    Schema.withDecodingDefault(Effect.succeed({})),
+  ),
 });
 export type OnesSettings = typeof OnesSettings.Type;
 
@@ -1945,6 +1949,7 @@ export const ServerSettingsPatch = Schema.Struct({
       password: Schema.optionalKey(SettingsSecretValue),
       statusFilter: Schema.optionalKey(IssueStatusFilter),
       doneStatusId: Schema.optionalKey(TrimmedString),
+      projectDoneStatusIds: Schema.optionalKey(OnesSettings.fields.projectDoneStatusIds),
     }),
   ),
   issueProjectBindings: Schema.optionalKey(Schema.Array(IssueProjectBinding)),

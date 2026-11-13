@@ -101,12 +101,12 @@ Features:
   last assistant message verbatim as an issue comment (`commentRunSummary` in `IssueService.ts`), then
   commits and pushes the thread's checkout through `GitManager.runStackedAction` (`commit_push`) with
   `<key> <title>` + that same summary (`autoDevCommitMessage`; the agent itself is told not to commit), then,
-  if the tracker's `doneStatusId` is set, moves the issue there via the matching workflow transition. RPCs `issues.*` in
+  if the tracker's `doneStatusId` (or the issue's project override in `projectDoneStatusIds`) is set, moves the issue there via the matching workflow transition. RPCs `issues.*` in
   `packages/contracts/src/{issues,rpc}.ts`, scopes in `apps/server/src/auth/RpcAuthorization.ts`,
   handlers in `apps/server/src/ws.ts`, layer in
   `apps/server/src/orchestration-v2/runtimeLayer.ts`, secrets in `apps/server/src/settingsSecrets.ts` (their paths listed in `serverSettings.test.ts` "strictly decoded" case), span aggregates in `apps/server/src/observability/RpcInstrumentation.ts`, mock layer in `apps/server/src/ws.test.ts`.
   Client: commands in `packages/client-runtime/src/state/server.ts`, guarded scopes in
-  `packages/contracts/src/clientRpcPermissions.ts`, "Issues" settings section `IssueSettings.tsx` (mounted in
+  `packages/contracts/src/clientRpcPermissions.ts`, "Trackers" settings section `IssueSettings.tsx` (mounted in
   `ProjectsSettings.tsx`, shown when no project is selected; one card per tracker with its tracker projects
   and a T4 project multi-picker), "Link" dialog opened from the project folder's "…" menu
   (`IssueProjectLinkDialog` in `apps/web/src/issues/OnesProjectLinks.tsx`), issue picker `components/sidebar/OnesIssuePickerDialog.tsx` (opened from
@@ -135,6 +135,10 @@ Features:
 - Citation comment popover: clicking away or moving focus out acts like Cancel (draft discarded, a
   just-cited chip removed); upstream saves the draft. `assistantCitationCommentDismissal.ts` (one
   line) and the `onOpenChange` block in `AssistantCitationChip.tsx`, both marked `t4code`.
+- Archived shelf: archived projects' folders (empty ones too) sit under a collapsible "Archived" header
+  directly above the Settled shelf at the bottom (`components/sidebar/SidebarArchivedShelf.tsx`; `keepEmptyFolders`, the folder
+  `collapsed` line and the header push in `Sidebar.tsx`, marked `t4code`). Upstream shows an archived
+  project only while it has active threads.
 - Running-only thread filter: a header toggle next to the project filter in `Sidebar.tsx` (`runningOnly`,
   marked `t4code`) keeps only threads with an active runtime and hides empty folders.
 - Issue board (footer "Issues" button in `SidebarChrome.tsx`, shown while `issueAutoDev.enabled`):
@@ -143,6 +147,9 @@ Features:
   (`issues.execute` → `launchAuto`, same `ones-auto:` command id, so one thread per issue). A row's dot
   reads the issue's thread (found by its `ones-auto-message:` first message id) from the client's
   thread shells: red failed, yellow working (pulsing), green completed.
+- "Open Issue" row under "Open in" in the thread details panel for auto-dev threads: the link is read
+  from the opening prompt's `链接:` line (`apps/web/src/issues/AutoDevIssueButton.tsx`), passed as
+  `issueUrl` from `ChatView.tsx` into `chat/ThreadDetailsPanel.tsx` (lines marked `t4code`).
 - Terminal font picker: already upstream (`TypographySettings.tsx`, `FontFamilyPicker.tsx`).
 
 ## Desktop dev

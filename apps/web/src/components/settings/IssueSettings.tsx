@@ -35,7 +35,7 @@ import { SettingsScopeNotice } from "./SettingsScopeNotice";
 import { SettingsSection } from "./settingsLayout";
 import { useScopedSettings } from "./useScopedSettings";
 
-const SECTION_TITLE = "Issues";
+const SECTION_TITLE = "Trackers";
 const TRACKER_KINDS = IssueTrackerKind.literals;
 
 export function IssueSettings() {
@@ -190,6 +190,7 @@ function TrackerCard(props: {
       password: draft.password === "" ? (tracker?.password ?? "") : draft.password,
       statusFilter: tracker?.statusFilter ?? { mode: "default", statusIds: [] },
       doneStatusId: tracker?.doneStatusId ?? "",
+      projectDoneStatusIds: tracker?.projectDoneStatusIds ?? {},
     });
     setBusy(false);
     if (!ok) return;
@@ -339,6 +340,14 @@ function TrackerCard(props: {
           tracker={tracker}
           catalog={catalog}
           disabled={disabled}
+          onDoneStatusChange={(trackerProjectId, statusId) => {
+            const { [trackerProjectId]: _old, ...rest } = tracker.projectDoneStatusIds;
+            void writeTracker({
+              ...tracker,
+              projectDoneStatusIds:
+                statusId === "" ? rest : { ...rest, [trackerProjectId]: statusId },
+            });
+          }}
         />
       ) : null}
       {configured && tracker && catalog.catalog ? (
@@ -366,6 +375,7 @@ function ProjectBindingsField(props: {
   tracker: IssueTrackerConnection;
   catalog: ReturnType<typeof useIssueTrackerCatalog>;
   disabled: boolean;
+  onDoneStatusChange: (trackerProjectId: string, statusId: string) => void;
 }) {
   const { environmentId, tracker, catalog } = props;
   const save = useSaveSettings(environmentId);
@@ -402,7 +412,8 @@ function ProjectBindingsField(props: {
       </div>
       <p className="text-xs text-muted-foreground">
         Choose the T4 projects each tracker project's issues belong to. One tracker project can feed
-        several T4 projects.
+        several T4 projects. The status picker sets where its issues move after auto development,
+        overriding the default below.
       </p>
       {catalog.error ? (
         <p className="text-xs text-destructive">{catalog.error}</p>
@@ -426,6 +437,17 @@ function ProjectBindingsField(props: {
             return (
               <li key={trackerProject.id} className="flex items-center gap-3 px-3 py-2">
                 <span className="min-w-0 flex-1 truncate text-sm">{trackerProject.name}</span>
+                {catalog.catalog?.statuses.length ? (
+                  <div className="w-40 shrink-0">
+                    <StatusSelect
+                      value={tracker.projectDoneStatusIds[trackerProject.id] ?? ""}
+                      statuses={catalog.catalog.statuses}
+                      emptyLabel="Default done status"
+                      disabled={props.disabled}
+                      onChange={(statusId) => props.onDoneStatusChange(trackerProject.id, statusId)}
+                    />
+                  </div>
+                ) : null}
                 <Menu>
                   <MenuTrigger
                     disabled={props.disabled}
@@ -644,40 +666,60 @@ function DoneStatusField(props: {
   disabled: boolean;
   onChange: (statusId: string) => void;
 }) {
-  const names = new Map(props.statuses.map((s) => [s.id, s.name]));
   return (
     <div className="grid gap-2 border-t pt-3">
       <Label>Status after auto development</Label>
       <p className="text-xs text-muted-foreground">
-        When an auto-development run completes, move the issue to this status. Skipped when the
-        issue's workflow has no transition to it from its current status.
+        When an auto-development run completes, move the issue to this status unless its project
+        picks its own above. Skipped when the issue's workflow has no transition to it from its
+        current status.
       </p>
       <div>
-        <Select
+        <StatusSelect
+          value={props.value}
+          statuses={props.statuses}
+          emptyLabel="Leave unchanged"
           disabled={props.disabled}
-          value={props.value === "" ? LEAVE_STATUS : props.value}
-          onValueChange={(value) => {
-            const next = !value || value === LEAVE_STATUS ? "" : value;
-            if (next !== props.value) props.onChange(next);
-          }}
-        >
-          <SelectTrigger size="sm" aria-label="Status after auto development">
-            <SelectValue>
-              {(value: string) =>
-                value === LEAVE_STATUS ? "Leave unchanged" : (names.get(value) ?? value)
-              }
-            </SelectValue>
-          </SelectTrigger>
-          <SelectPopup>
-            <SelectItem value={LEAVE_STATUS}>Leave unchanged</SelectItem>
-            {props.statuses.map((status) => (
-              <SelectItem key={status.id} value={status.id}>
-                {status.name}
-              </SelectItem>
-            ))}
-          </SelectPopup>
-        </Select>
+          onChange={props.onChange}
+        />
       </div>
     </div>
+  );
+}
+
+/** Picks one status; `""` is the empty choice shown as `emptyLabel`. */
+function StatusSelect(props: {
+  value: string;
+  statuses: ReadonlyArray<IssueTrackerStatus>;
+  emptyLabel: string;
+  disabled: boolean;
+  onChange: (statusId: string) => void;
+}) {
+  const names = new Map(props.statuses.map((s) => [s.id, s.name]));
+  return (
+    <Select
+      disabled={props.disabled}
+      value={props.value === "" ? LEAVE_STATUS : props.value}
+      onValueChange={(value) => {
+        const next = !value || value === LEAVE_STATUS ? "" : value;
+        if (next !== props.value) props.onChange(next);
+      }}
+    >
+      <SelectTrigger size="sm" aria-label={props.emptyLabel}>
+        <SelectValue>
+          {(value: string) =>
+            value === LEAVE_STATUS ? props.emptyLabel : (names.get(value) ?? value)
+          }
+        </SelectValue>
+      </SelectTrigger>
+      <SelectPopup>
+        <SelectItem value={LEAVE_STATUS}>{props.emptyLabel}</SelectItem>
+        {props.statuses.map((status) => (
+          <SelectItem key={status.id} value={status.id}>
+            {status.name}
+          </SelectItem>
+        ))}
+      </SelectPopup>
+    </Select>
   );
 }

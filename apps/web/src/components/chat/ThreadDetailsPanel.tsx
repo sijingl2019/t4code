@@ -39,6 +39,7 @@ import {
   THREAD_DETAILS_PANEL_LABEL_CLASS,
 } from "./threadDetailsPanelStyles";
 import { Menu, MenuPopup } from "../ui/menu";
+import { AutoDevIssueButton } from "../../issues/AutoDevIssueButton";
 
 const GitActionsControl = memo(BaseGitActionsControl);
 
@@ -85,6 +86,7 @@ interface ThreadDetailsPanelProps extends Pick<
   ) => Promise<ProjectScriptActionResult>;
   onDeleteProjectScript: (scriptId: string) => Promise<ProjectScriptActionResult>;
   usage: ThreadDetailsUsageInput;
+  issueUrl?: string | null; // t4code: auto-dev thread's issue
 }
 
 export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
@@ -163,7 +165,7 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
         return (
           <>
             <div className="group/details-items">
-              {show.environment || show.openIn || show.scripts ? (
+              {show.environment || show.openIn || show.scripts || props.issueUrl ? (
                 <ThreadDetailsSection
                   headingId="thread-details-workspace-heading"
                   title="Workspace"
@@ -195,6 +197,8 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                         displayMode="panel"
                       />
                     ) : null}
+
+                    {props.issueUrl ? <AutoDevIssueButton url={props.issueUrl} /> : null}
 
                     {show.scripts && props.activeProjectScripts ? (
                       <ProjectScriptsControl

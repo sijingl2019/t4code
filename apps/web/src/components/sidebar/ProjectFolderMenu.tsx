@@ -146,7 +146,7 @@ function ProjectFolderMenuItems({
       {linkableIssueTrackers(config?.settings).length > 0 ? (
         <MenuItem onClick={onLinkOnes}>
           <LinkIcon />
-          Link Issues
+          Link Trackers
         </MenuItem>
       ) : null}
       {canReveal || canOpenVsCode ? <MenuSeparator /> : null}

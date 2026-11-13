@@ -621,17 +621,26 @@ export const layer = Layer.effect(
             Effect.logWarning("Issue auto-dev commit failed", { ...ref, cause }),
           ),
         );
-        if (tracker.doneStatusId === "") return;
+        const overrides = tracker.projectDoneStatusIds;
+        const doneStatusId =
+          Object.keys(overrides).length === 0
+            ? tracker.doneStatusId
+            : ((yield* Effect.tryPromise({
+                try: async () =>
+                  overrides[(await client.loadIssue(ref.issueUuid)).trackerProjectId],
+                catch: fail,
+              })) ?? tracker.doneStatusId);
+        if (doneStatusId === "") return;
         // Later runs find no transition once the issue is there, so this moves it once.
         const moved = yield* Effect.tryPromise({
-          try: () => client.moveToStatus(ref.issueUuid, tracker.doneStatusId),
+          try: () => client.moveToStatus(ref.issueUuid, doneStatusId),
           catch: fail,
         });
         yield* Effect.logInfo(
           moved
             ? "Issue auto-dev status updated"
             : "Issue auto-dev status unchanged (no transition)",
-          { ...ref, statusId: tracker.doneStatusId },
+          { ...ref, statusId: doneStatusId },
         );
       },
       Effect.catchCause((cause) => Effect.logWarning("ONES auto-dev comment failed", { cause })),
