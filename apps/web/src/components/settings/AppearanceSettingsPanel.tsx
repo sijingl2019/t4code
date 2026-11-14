@@ -295,16 +295,15 @@ export function AppearanceSettingsPanel() {
 
         <SettingsRow
           {...searchableSetting("window-background")}
-          description="Show an image across the whole window and choose how it fits. Lower opacity keeps text readable; blur gives it a frosted-glass look."
+          description="Show an image across the whole window and choose how it fits."
           resetAction={
-            settings.windowBackgroundImage !== DEFAULT_UNIFIED_SETTINGS.windowBackgroundImage ? (
+            settings.windowBackgroundImage !== DEFAULT_UNIFIED_SETTINGS.windowBackgroundImage ||
+            settings.windowBackgroundFit !== DEFAULT_UNIFIED_SETTINGS.windowBackgroundFit ? (
               <SettingResetButton
-                label="window background"
+                label="background image"
                 onClick={() =>
                   updateSettings({
                     windowBackgroundImage: DEFAULT_UNIFIED_SETTINGS.windowBackgroundImage,
-                    windowBackgroundOpacity: DEFAULT_UNIFIED_SETTINGS.windowBackgroundOpacity,
-                    windowBackgroundBlur: DEFAULT_UNIFIED_SETTINGS.windowBackgroundBlur,
                     windowBackgroundFit: DEFAULT_UNIFIED_SETTINGS.windowBackgroundFit,
                   })
                 }
@@ -384,58 +383,97 @@ export function AppearanceSettingsPanel() {
                   ))}
                 </SelectPopup>
               </Select>
-              <div className="flex items-center gap-3">
-                <output
-                  className="min-w-12 rounded-md bg-muted px-2 py-1 text-center font-mono text-xs font-medium tabular-nums text-foreground"
-                  htmlFor="window-background-opacity"
-                >
-                  {settings.windowBackgroundOpacity}%
-                </output>
-                <input
-                  aria-label="Window background opacity"
-                  className="settings-slider min-w-0 flex-1"
-                  disabled={settings.windowBackgroundImage === ""}
-                  id="window-background-opacity"
-                  max={MAX_WINDOW_BACKGROUND_OPACITY}
-                  min={MIN_WINDOW_BACKGROUND_OPACITY}
-                  onChange={(event) => {
-                    const windowBackgroundOpacity = Number(event.currentTarget.value);
-                    if (Number.isInteger(windowBackgroundOpacity)) {
-                      updateSettings({ windowBackgroundOpacity });
-                    }
-                  }}
-                  step={1}
-                  style={windowBackgroundSliderStyle}
-                  type="range"
-                  value={settings.windowBackgroundOpacity}
-                />
-              </div>
-              <div className="flex items-center gap-3">
-                <output
-                  className="min-w-12 rounded-md bg-muted px-2 py-1 text-center font-mono text-xs font-medium tabular-nums text-foreground"
-                  htmlFor="window-background-blur"
-                >
-                  {settings.windowBackgroundBlur}px
-                </output>
-                <input
-                  aria-label="Window background blur"
-                  className="settings-slider min-w-0 flex-1"
-                  disabled={settings.windowBackgroundImage === ""}
-                  id="window-background-blur"
-                  max={MAX_WINDOW_BACKGROUND_BLUR}
-                  min={MIN_WINDOW_BACKGROUND_BLUR}
-                  onChange={(event) => {
-                    const windowBackgroundBlur = Number(event.currentTarget.value);
-                    if (Number.isInteger(windowBackgroundBlur)) {
-                      updateSettings({ windowBackgroundBlur });
-                    }
-                  }}
-                  step={1}
-                  style={windowBackgroundBlurSliderStyle}
-                  type="range"
-                  value={settings.windowBackgroundBlur}
-                />
-              </div>
+            </div>
+          }
+        />
+
+        <SettingsRow
+          {...searchableSetting("window-background-opacity")}
+          description="Lower opacity keeps text readable over the background image."
+          resetAction={
+            settings.windowBackgroundOpacity !==
+            DEFAULT_UNIFIED_SETTINGS.windowBackgroundOpacity ? (
+              <SettingResetButton
+                label="background opacity"
+                onClick={() =>
+                  updateSettings({
+                    windowBackgroundOpacity: DEFAULT_UNIFIED_SETTINGS.windowBackgroundOpacity,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <div className="flex w-full items-center gap-3 sm:w-52">
+              <output
+                className="min-w-12 rounded-md bg-muted px-2 py-1 text-center font-mono text-xs font-medium tabular-nums text-foreground"
+                htmlFor="window-background-opacity"
+              >
+                {settings.windowBackgroundOpacity}%
+              </output>
+              <input
+                aria-label="Window background opacity"
+                className="settings-slider min-w-0 flex-1"
+                disabled={settings.windowBackgroundImage === ""}
+                id="window-background-opacity"
+                max={MAX_WINDOW_BACKGROUND_OPACITY}
+                min={MIN_WINDOW_BACKGROUND_OPACITY}
+                onChange={(event) => {
+                  const windowBackgroundOpacity = Number(event.currentTarget.value);
+                  if (Number.isInteger(windowBackgroundOpacity)) {
+                    updateSettings({ windowBackgroundOpacity });
+                  }
+                }}
+                step={1}
+                style={windowBackgroundSliderStyle}
+                type="range"
+                value={settings.windowBackgroundOpacity}
+              />
+            </div>
+          }
+        />
+
+        <SettingsRow
+          {...searchableSetting("window-background-blur")}
+          description="Blur the background image for a frosted-glass look."
+          resetAction={
+            settings.windowBackgroundBlur !== DEFAULT_UNIFIED_SETTINGS.windowBackgroundBlur ? (
+              <SettingResetButton
+                label="background glass"
+                onClick={() =>
+                  updateSettings({
+                    windowBackgroundBlur: DEFAULT_UNIFIED_SETTINGS.windowBackgroundBlur,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <div className="flex w-full items-center gap-3 sm:w-52">
+              <output
+                className="min-w-12 rounded-md bg-muted px-2 py-1 text-center font-mono text-xs font-medium tabular-nums text-foreground"
+                htmlFor="window-background-blur"
+              >
+                {settings.windowBackgroundBlur}px
+              </output>
+              <input
+                aria-label="Window background blur"
+                className="settings-slider min-w-0 flex-1"
+                disabled={settings.windowBackgroundImage === ""}
+                id="window-background-blur"
+                max={MAX_WINDOW_BACKGROUND_BLUR}
+                min={MIN_WINDOW_BACKGROUND_BLUR}
+                onChange={(event) => {
+                  const windowBackgroundBlur = Number(event.currentTarget.value);
+                  if (Number.isInteger(windowBackgroundBlur)) {
+                    updateSettings({ windowBackgroundBlur });
+                  }
+                }}
+                step={1}
+                style={windowBackgroundBlurSliderStyle}
+                type="range"
+                value={settings.windowBackgroundBlur}
+              />
             </div>
           }
         />

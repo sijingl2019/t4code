@@ -455,10 +455,14 @@ export function useSettingsRestore(onRestored?: () => void) {
       : []),
     ...(settings.glassOpacity !== DEFAULT_UNIFIED_SETTINGS.glassOpacity ? ["Glass opacity"] : []),
     ...(settings.windowBackgroundImage !== DEFAULT_UNIFIED_SETTINGS.windowBackgroundImage ||
-    settings.windowBackgroundOpacity !== DEFAULT_UNIFIED_SETTINGS.windowBackgroundOpacity ||
-    settings.windowBackgroundBlur !== DEFAULT_UNIFIED_SETTINGS.windowBackgroundBlur ||
     settings.windowBackgroundFit !== DEFAULT_UNIFIED_SETTINGS.windowBackgroundFit
-      ? ["Window background"]
+      ? ["Background image"]
+      : []),
+    ...(settings.windowBackgroundOpacity !== DEFAULT_UNIFIED_SETTINGS.windowBackgroundOpacity
+      ? ["Background opacity"]
+      : []),
+    ...(settings.windowBackgroundBlur !== DEFAULT_UNIFIED_SETTINGS.windowBackgroundBlur
+      ? ["Background glass"]
       : []),
     ...(settings.diffColorScheme !== DEFAULT_UNIFIED_SETTINGS.diffColorScheme
       ? ["Diff colors"]

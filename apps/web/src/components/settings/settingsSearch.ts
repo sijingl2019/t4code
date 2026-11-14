@@ -337,11 +337,21 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "window-background",
-    title: "Window background image",
+    title: "Background image",
     to: "/settings/appearance",
-    searchTerms: [
-      "wallpaper background picture image opacity transparency blur frosted glass 毛玻璃",
-    ],
+    searchTerms: ["wallpaper window background picture image fit fill stretch tile center"],
+  },
+  {
+    id: "window-background-opacity",
+    title: "Background opacity",
+    to: "/settings/appearance",
+    searchTerms: ["wallpaper window background image opacity transparency"],
+  },
+  {
+    id: "window-background-blur",
+    title: "Background glass",
+    to: "/settings/appearance",
+    searchTerms: ["wallpaper window background image blur frosted glass 毛玻璃"],
   },
   {
     id: "diff-color-scheme",
