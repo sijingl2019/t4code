@@ -4,7 +4,7 @@ import {
   scopeThreadRef,
 } from "@t3tools/client-runtime/environment";
 import type { ScopedThreadRef } from "@t3tools/contracts";
-import type { ClientSettings } from "@t3tools/contracts/settings";
+import type { ClientSettings, WindowBackgroundFit } from "@t3tools/contracts/settings";
 import { createBrowserHistory, createHashHistory } from "@tanstack/react-router";
 import * as Schema from "effect/Schema";
 
@@ -71,7 +71,27 @@ import { resolveActiveThreadRouteRef, resolveThreadRouteTarget } from "./threadR
  * Blending (screen on dark, multiply on light) tints the surfaces but leaves
  * near-white / near-black text untouched, so the overlay does not wash text out.
  */
-function applyWindowBackground(image: string, opacityPercent: number, blurPx: number): void {
+const WINDOW_BACKGROUND_FIT_STYLES: Record<
+  WindowBackgroundFit,
+  { backgroundSize: string; backgroundRepeat: string; backgroundPosition: string }
+> = {
+  fill: { backgroundSize: "cover", backgroundRepeat: "no-repeat", backgroundPosition: "center" },
+  fit: { backgroundSize: "contain", backgroundRepeat: "no-repeat", backgroundPosition: "center" },
+  stretch: {
+    backgroundSize: "100% 100%",
+    backgroundRepeat: "no-repeat",
+    backgroundPosition: "center",
+  },
+  tile: { backgroundSize: "auto", backgroundRepeat: "repeat", backgroundPosition: "0 0" },
+  center: { backgroundSize: "auto", backgroundRepeat: "no-repeat", backgroundPosition: "center" },
+};
+
+function applyWindowBackground(
+  image: string,
+  opacityPercent: number,
+  blurPx: number,
+  fit: WindowBackgroundFit,
+): void {
   const id = "t4-window-background";
   let layer = document.getElementById(id);
   if (image === "") {
@@ -88,13 +108,11 @@ function applyWindowBackground(image: string, opacityPercent: number, blurPx: nu
       inset: "0",
       pointerEvents: "none",
       zIndex: "2147483646",
-      backgroundSize: "cover",
-      backgroundPosition: "center",
-      backgroundRepeat: "no-repeat",
     });
     document.body.append(layer);
   }
   layer.style.backgroundImage = `url("${image}")`;
+  Object.assign(layer.style, WINDOW_BACKGROUND_FIT_STYLES[fit]);
   layer.style.opacity = String(opacityPercent / 100);
   // Blur fades the image edges; overscan by twice the radius so the fade sits off-screen.
   layer.style.inset = `${-2 * blurPx}px`;
@@ -137,12 +155,14 @@ function startClientAppearance(): void {
     if (
       previous?.windowBackgroundImage !== settings.windowBackgroundImage ||
       previous.windowBackgroundOpacity !== settings.windowBackgroundOpacity ||
-      previous.windowBackgroundBlur !== settings.windowBackgroundBlur
+      previous.windowBackgroundBlur !== settings.windowBackgroundBlur ||
+      previous.windowBackgroundFit !== settings.windowBackgroundFit
     ) {
       applyWindowBackground(
         settings.windowBackgroundImage,
         settings.windowBackgroundOpacity,
         settings.windowBackgroundBlur,
+        settings.windowBackgroundFit,
       );
     }
     if (

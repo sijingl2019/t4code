@@ -6,6 +6,7 @@ import {
   type ChatWidth,
   type EffortDisplay,
   type EnvironmentIdentificationMode,
+  type WindowBackgroundFit,
   MAX_APPEARANCE_CONTRAST,
   MAX_GLASS_OPACITY,
   MAX_WINDOW_BACKGROUND_BLUR,
@@ -79,6 +80,18 @@ function environmentIdentificationOptions(
     ["dev-artwork", "Dev artwork"],
   ];
 }
+
+const WINDOW_BACKGROUND_FIT_LABELS: Record<WindowBackgroundFit, string> = {
+  fill: "Fill",
+  fit: "Fit",
+  stretch: "Stretch",
+  tile: "Tile",
+  center: "Center",
+};
+
+const WINDOW_BACKGROUND_FIT_OPTIONS = Object.entries(WINDOW_BACKGROUND_FIT_LABELS) as ReadonlyArray<
+  readonly [WindowBackgroundFit, string]
+>;
 
 const CHAT_WIDTH_LABELS: Record<ChatWidth, string> = {
   comfortable: "Comfortable",
@@ -282,7 +295,7 @@ export function AppearanceSettingsPanel() {
 
         <SettingsRow
           {...searchableSetting("window-background")}
-          description="Show an image across the whole window. Lower opacity keeps text readable; blur gives it a frosted-glass look."
+          description="Show an image across the whole window and choose how it fits. Lower opacity keeps text readable; blur gives it a frosted-glass look."
           resetAction={
             settings.windowBackgroundImage !== DEFAULT_UNIFIED_SETTINGS.windowBackgroundImage ? (
               <SettingResetButton
@@ -292,6 +305,7 @@ export function AppearanceSettingsPanel() {
                     windowBackgroundImage: DEFAULT_UNIFIED_SETTINGS.windowBackgroundImage,
                     windowBackgroundOpacity: DEFAULT_UNIFIED_SETTINGS.windowBackgroundOpacity,
                     windowBackgroundBlur: DEFAULT_UNIFIED_SETTINGS.windowBackgroundBlur,
+                    windowBackgroundFit: DEFAULT_UNIFIED_SETTINGS.windowBackgroundFit,
                   })
                 }
               />
@@ -345,6 +359,31 @@ export function AppearanceSettingsPanel() {
               {backgroundError ? (
                 <p className="text-xs text-destructive">{backgroundError}</p>
               ) : null}
+              <Select
+                disabled={settings.windowBackgroundImage === ""}
+                value={settings.windowBackgroundFit}
+                onValueChange={(value) => {
+                  const fit = WINDOW_BACKGROUND_FIT_OPTIONS.find(([option]) => option === value);
+                  if (fit) updateSettings({ windowBackgroundFit: fit[0] });
+                }}
+              >
+                <SelectTrigger
+                  size="sm"
+                  className="w-full min-w-0"
+                  aria-label="Window background fit"
+                >
+                  <SelectValue>
+                    {WINDOW_BACKGROUND_FIT_LABELS[settings.windowBackgroundFit]}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectPopup align="end" alignItemWithTrigger={false}>
+                  {WINDOW_BACKGROUND_FIT_OPTIONS.map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectPopup>
+              </Select>
               <div className="flex items-center gap-3">
                 <output
                   className="min-w-12 rounded-md bg-muted px-2 py-1 text-center font-mono text-xs font-medium tabular-nums text-foreground"

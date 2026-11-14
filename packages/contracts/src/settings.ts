@@ -361,6 +361,10 @@ export const DiffColorScheme = Schema.Literals(["red-green", "blue-orange"]);
 export const ChatWidth = Schema.Literals(["comfortable", "wide", "full"]);
 export type ChatWidth = typeof ChatWidth.Type;
 
+/** How the window background image fits the window, like desktop wallpaper modes. */
+export const WindowBackgroundFit = Schema.Literals(["fill", "fit", "stretch", "tile", "center"]);
+export type WindowBackgroundFit = typeof WindowBackgroundFit.Type;
+
 /** How the composer shows reasoning effort: the level's name, or rising bars. */
 export const EffortDisplay = Schema.Literals(["label", "bars"]);
 export type EffortDisplay = typeof EffortDisplay.Type;
@@ -502,6 +506,9 @@ export const ClientSettingsSchema = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed(15)),
   ),
   windowBackgroundBlur: WindowBackgroundBlur.pipe(Schema.withDecodingDefault(Effect.succeed(0))),
+  windowBackgroundFit: WindowBackgroundFit.pipe(
+    Schema.withDecodingDefault(Effect.succeed<WindowBackgroundFit>("fill")),
+  ),
   fontSizeInterface: InterfaceFontSize.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_INTERFACE_FONT_SIZE)),
   ),
@@ -2196,6 +2203,7 @@ export const ClientSettingsPatch = Schema.Struct({
   windowBackgroundImage: Schema.optionalKey(Schema.String),
   windowBackgroundOpacity: Schema.optionalKey(WindowBackgroundOpacity),
   windowBackgroundBlur: Schema.optionalKey(WindowBackgroundBlur),
+  windowBackgroundFit: Schema.optionalKey(WindowBackgroundFit),
   fontFamilyCode: Schema.optionalKey(FontFamilyPreference),
   fontFamilyComposer: Schema.optionalKey(FontFamilyPreference),
   fontFamilySans: Schema.optionalKey(FontFamilyPreference),
