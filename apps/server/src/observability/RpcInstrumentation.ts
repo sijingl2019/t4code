@@ -236,6 +236,7 @@ const RPC_AGGREGATES = {
   [WS_METHODS.issuesCatalog]: "issues",
   [WS_METHODS.issuesBoard]: "issues",
   [WS_METHODS.issuesExecute]: "issues",
+  [WS_METHODS.issuesPull]: "issues",
   [WS_METHODS.issuesSetStatus]: "issues",
   [WS_METHODS.memoryGetStats]: "memory",
   [WS_METHODS.memoryClear]: "memory",

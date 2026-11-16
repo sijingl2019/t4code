@@ -136,6 +136,7 @@ interface GitActionsControlProps {
   showChanges?: boolean;
   onOpenChanges?: () => void;
   workspaceMutationId?: string | null;
+  defaultCommitMessage?: string | null | undefined; // t4code: issue threads prefill the Commit dialog
 }
 
 interface PendingDefaultBranchAction {
@@ -957,6 +958,7 @@ export default function GitActionsControl({
   showChanges = true,
   onOpenChanges,
   workspaceMutationId = null,
+  defaultCommitMessage = null, // t4code
 }: GitActionsControlProps) {
   const panelAnchorRef = useRef<HTMLDivElement | null>(null);
   const updateThreadMetadata = useAtomCommand(
@@ -1427,6 +1429,7 @@ export default function GitActionsControl({
     }
     setExcludedFiles(new Set());
     setIsEditingFiles(false);
+    setDialogCommitMessage((current) => current || (defaultCommitMessage ?? "")); // t4code
     setIsCommitDialogOpen(true);
   };
 

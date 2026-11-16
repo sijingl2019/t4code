@@ -11,6 +11,7 @@ import {
   PencilIcon,
   PinIcon,
   PinOffIcon,
+  RefreshCwIcon,
   XIcon,
 } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
@@ -29,6 +30,7 @@ import {
   type IssueLinkSelection,
 } from "../../issues/OnesProjectLinks";
 import { linkableIssueTrackers } from "../../issues/useIssueTrackerCatalog";
+import { serverEnvironment } from "../../state/server";
 import { releaseProjectDraftUploads } from "../../lib/composerDraftUploads";
 import { getLocalFileManagerName } from "../../lib/utils";
 import { readLocalApi } from "../../localApi";
@@ -53,6 +55,8 @@ import {
 } from "../ui/dialog";
 import { Input } from "../ui/input";
 import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from "../ui/menu";
+import { toastManager } from "../ui/toast";
+import { useHasIssueBinding } from "./OnesIssuePickerDialog";
 
 const ProjectIconPickerDialog = lazy(() =>
   import("../settings/ProjectIconPickerDialog").then((module) => ({
@@ -60,7 +64,7 @@ const ProjectIconPickerDialog = lazy(() =>
   })),
 );
 
-/** The project folder's "…" menu: pin, edit, link issue projects, reveal, archive, remove. */
+/** The project folder's "…" menu: pin, edit, link and pull issues, reveal, archive, remove. */
 export function ProjectFolderMenu(props: {
   group: SidebarProjectSnapshot;
   onOpenSettings: (group: SidebarProjectSnapshot) => void;
@@ -130,6 +134,22 @@ function ProjectFolderMenuItems({
   const isLocal = group.environmentId === primaryEnvironmentId;
   const canReveal = isLocal && config?.availableEditors.includes("file-manager") === true;
   const canOpenVsCode = isLocal && config?.availableEditors.includes("vscode") === true;
+  const hasIssueBinding = useHasIssueBinding(group.environmentId, group.workspaceRoot);
+  const pullIssues = useAtomCommand(serverEnvironment.pullIssues, { reportFailure: true });
+  const pull = async () => {
+    const result = await pullIssues({
+      environmentId: group.environmentId,
+      input: { projectId: group.id },
+    });
+    if (result._tag !== "Success") return;
+    toastManager.add({
+      type: "success",
+      title:
+        result.value === 0
+          ? "No new issues to start"
+          : `Started ${result.value} issue thread${result.value === 1 ? "" : "s"}`,
+    });
+  };
 
   return (
     <>
@@ -147,6 +167,12 @@ function ProjectFolderMenuItems({
         <MenuItem onClick={onLinkOnes}>
           <LinkIcon />
           Link Trackers
+        </MenuItem>
+      ) : null}
+      {hasIssueBinding ? (
+        <MenuItem onClick={() => void pull()}>
+          <RefreshCwIcon />
+          Pull Issues Now
         </MenuItem>
       ) : null}
       {canReveal || canOpenVsCode ? <MenuSeparator /> : null}

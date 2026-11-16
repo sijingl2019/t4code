@@ -6,7 +6,7 @@ import {
   autoDevCommitMessage,
   issueCommitMessage,
   parseIssuePrompt,
-} from "./issueCommitMessage.ts";
+} from "@t3tools/shared/issueCommitMessage";
 import { extractImages, OnesClient, textToOnesHtml } from "./OnesClient.ts";
 
 const issue: Issue = {
@@ -69,6 +69,8 @@ describe("ONES issues", () => {
     expect(prompt).toContain("git commit");
     expect(prompt).toContain("C:/a/1-shot.png");
     expect(prompt).toContain("Ann: repro on 17.2");
+    expect(prompt).not.toContain("系统自动完成");
+    expect(buildIssuePrompt(issue, { auto: true, autoCommit: true })).toContain("「#7 Fix login」");
   });
 
   it("builds a manual prompt without the auto constraints", () => {
@@ -197,14 +199,12 @@ describe("ONES issues", () => {
       title: "Fix login",
       description: "Login fails on Safari",
     });
-    expect(issueCommitMessage(parsed!, undefined)).toBe(
-      "ONES-7 Fix login\n\nLogin fails on Safari",
-    );
-    expect(issueCommitMessage(parsed!, "fix cookie expiry")).toBe("ONES-7 fix cookie expiry");
-    expect(issueCommitMessage(parsed!, "ONES-7: done")).toBe("ONES-7: done");
+    expect(issueCommitMessage(parsed!, undefined)).toBe("#7 Fix login\n\nLogin fails on Safari");
+    expect(issueCommitMessage(parsed!, "fix cookie expiry")).toBe("#7 fix cookie expiry");
+    expect(issueCommitMessage(parsed!, "#7: done")).toBe("#7: done");
     expect(parseIssuePrompt("just a normal request")).toBeNull();
     const auto = autoDevCommitMessage(parsed!, "  Changed a.ts\nTests pass  ");
-    expect(auto).toBe("ONES-7 Fix login\n\nChanged a.ts\nTests pass");
+    expect(auto).toBe("#7 Fix login\n\nChanged a.ts\nTests pass");
     // The Commit-button rule must not rewrite it again.
     expect(issueCommitMessage(parsed!, auto)).toBe(auto);
   });

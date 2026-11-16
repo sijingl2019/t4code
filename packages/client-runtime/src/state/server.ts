@@ -1834,6 +1834,10 @@ export function createServerEnvironmentAtoms<R, E>(
       label: "environment-data:issues:execute",
       tag: WS_METHODS.issuesExecute,
     }),
+    pullIssues: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:issues:pull",
+      tag: WS_METHODS.issuesPull,
+    }),
     setIssueStatus: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:issues:set-status",
       tag: WS_METHODS.issuesSetStatus,

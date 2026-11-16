@@ -93,6 +93,7 @@ interface ThreadDetailsPanelProps extends Pick<
   onDeleteProjectScript: (scriptId: string) => Promise<ProjectScriptActionResult>;
   usage: ThreadDetailsUsageInput;
   issueUrl?: string | null; // t4code: auto-dev thread's issue
+  issueCommitDraft?: string | null; // t4code: Commit dialog message for an issue thread
 }
 
 export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
@@ -262,6 +263,7 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                         activeThreadRef={activeThreadRef}
                         {...(props.draftId ? { draftId: props.draftId } : {})}
                         {...(props.onOpenChanges ? { onOpenChanges: props.onOpenChanges } : {})}
+                        defaultCommitMessage={props.issueCommitDraft} // t4code
                       />
                     ) : null}
                   </div>

@@ -629,6 +629,7 @@ export const WS_METHODS = {
   issuesCatalog: "issues.catalog",
   issuesBoard: "issues.board",
   issuesExecute: "issues.execute",
+  issuesPull: "issues.pull",
   issuesSetStatus: "issues.setStatus",
   memoryGetStats: "memory.getStats",
   memoryClear: "memory.clear",
@@ -1373,6 +1374,13 @@ const WsIssuesBoardRpc = Rpc.make(WS_METHODS.issuesBoard, {
 const WsIssuesExecuteRpc = Rpc.make(WS_METHODS.issuesExecute, {
   payload: IssueExecuteInput,
   success: ThreadId,
+  error: Schema.Union([IssueTrackerError, EnvironmentAuthorizationError]),
+});
+
+// Runs the auto-dev poll for one project now; succeeds with the number of threads started.
+const WsIssuesPullRpc = Rpc.make(WS_METHODS.issuesPull, {
+  payload: IssueListInput,
+  success: Schema.Number,
   error: Schema.Union([IssueTrackerError, EnvironmentAuthorizationError]),
 });
 
@@ -2291,6 +2299,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsIssuesCatalogRpc,
   WsIssuesBoardRpc,
   WsIssuesExecuteRpc,
+  WsIssuesPullRpc,
   WsIssuesSetStatusRpc,
   WsMemoryGetStatsRpc,
   WsMemoryClearRpc,

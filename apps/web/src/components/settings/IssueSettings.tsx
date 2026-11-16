@@ -25,6 +25,7 @@ import { useProjects } from "../../state/entities";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { Button } from "../ui/button";
+import { Checkbox } from "../ui/checkbox";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Menu, MenuCheckboxItem, MenuPopup, MenuTrigger } from "../ui/menu";
@@ -189,8 +190,8 @@ function TrackerCard(props: {
       email: draft.email.trim(),
       password: draft.password === "" ? (tracker?.password ?? "") : draft.password,
       statusFilter: tracker?.statusFilter ?? { mode: "default", statusIds: [] },
-      doneStatusId: tracker?.doneStatusId ?? "",
       projectDoneStatusIds: tracker?.projectDoneStatusIds ?? {},
+      autoCommitProjectIds: tracker?.autoCommitProjectIds ?? [],
     });
     setBusy(false);
     if (!ok) return;
@@ -348,6 +349,13 @@ function TrackerCard(props: {
                 statusId === "" ? rest : { ...rest, [trackerProjectId]: statusId },
             });
           }}
+          onAutoCommitChange={(trackerProjectId, on) => {
+            const rest = tracker.autoCommitProjectIds.filter((p) => p !== trackerProjectId);
+            void writeTracker({
+              ...tracker,
+              autoCommitProjectIds: on ? [...rest, trackerProjectId] : rest,
+            });
+          }}
         />
       ) : null}
       {configured && tracker && catalog.catalog ? (
@@ -356,14 +364,6 @@ function TrackerCard(props: {
           statuses={catalog.catalog.statuses}
           disabled={disabled}
           onChange={(statusFilter) => void writeTracker({ ...tracker, statusFilter })}
-        />
-      ) : null}
-      {configured && tracker && catalog.catalog ? (
-        <DoneStatusField
-          value={tracker.doneStatusId}
-          statuses={catalog.catalog.statuses}
-          disabled={disabled}
-          onChange={(doneStatusId) => void writeTracker({ ...tracker, doneStatusId })}
         />
       ) : null}
     </div>
@@ -376,6 +376,7 @@ function ProjectBindingsField(props: {
   catalog: ReturnType<typeof useIssueTrackerCatalog>;
   disabled: boolean;
   onDoneStatusChange: (trackerProjectId: string, statusId: string) => void;
+  onAutoCommitChange: (trackerProjectId: string, on: boolean) => void;
 }) {
   const { environmentId, tracker, catalog } = props;
   const save = useSaveSettings(environmentId);
@@ -412,8 +413,9 @@ function ProjectBindingsField(props: {
       </div>
       <p className="text-xs text-muted-foreground">
         Choose the T4 projects each tracker project's issues belong to. One tracker project can feed
-        several T4 projects. The status picker sets where its issues move after auto development,
-        overriding the default below.
+        several T4 projects. After an auto-development run, the status picker moves the issue (left
+        unchanged when unset), and Commit commits and pushes the changes as "#number title". Without
+        Commit the changes stay uncommitted.
       </p>
       {catalog.error ? (
         <p className="text-xs text-destructive">{catalog.error}</p>
@@ -442,12 +444,22 @@ function ProjectBindingsField(props: {
                     <StatusSelect
                       value={tracker.projectDoneStatusIds[trackerProject.id] ?? ""}
                       statuses={catalog.catalog.statuses}
-                      emptyLabel="Default done status"
+                      emptyLabel="Keep status"
                       disabled={props.disabled}
                       onChange={(statusId) => props.onDoneStatusChange(trackerProject.id, statusId)}
                     />
                   </div>
                 ) : null}
+                <label className="flex shrink-0 items-center gap-1.5 text-xs">
+                  <Checkbox
+                    checked={tracker.autoCommitProjectIds.includes(trackerProject.id)}
+                    disabled={props.disabled}
+                    onCheckedChange={(checked) =>
+                      props.onAutoCommitChange(trackerProject.id, checked === true)
+                    }
+                  />
+                  Commit
+                </label>
                 <Menu>
                   <MenuTrigger
                     disabled={props.disabled}
@@ -659,33 +671,6 @@ function StatusFilterField(props: {
 }
 
 const LEAVE_STATUS = "__leave__";
-
-function DoneStatusField(props: {
-  value: string;
-  statuses: ReadonlyArray<IssueTrackerStatus>;
-  disabled: boolean;
-  onChange: (statusId: string) => void;
-}) {
-  return (
-    <div className="grid gap-2 border-t pt-3">
-      <Label>Status after auto development</Label>
-      <p className="text-xs text-muted-foreground">
-        When an auto-development run completes, move the issue to this status unless its project
-        picks its own above. Skipped when the issue's workflow has no transition to it from its
-        current status.
-      </p>
-      <div>
-        <StatusSelect
-          value={props.value}
-          statuses={props.statuses}
-          emptyLabel="Leave unchanged"
-          disabled={props.disabled}
-          onChange={props.onChange}
-        />
-      </div>
-    </div>
-  );
-}
 
 /** Picks one status; `""` is the empty choice shown as `emptyLabel`. */
 function StatusSelect(props: {

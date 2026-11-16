@@ -51,7 +51,7 @@ import * as Scheduler from "../scheduling/Scheduler.ts";
 import { forkParked } from "../serverActivation.ts";
 import * as ServerSettingsModule from "../serverSettings.ts";
 import { connectionKey, effectiveStatusFilter, issueTrackerAdapter } from "./issueTrackers.ts";
-import { autoDevCommitMessage } from "./issueCommitMessage.ts";
+import { autoDevCommitMessage, commitRef } from "@t3tools/shared/issueCommitMessage";
 import type { IssueTrackerClient } from "./IssueTrackerClient.ts";
 
 const LIST_CACHE_MS = 60_000;
@@ -76,6 +76,8 @@ export class IssueService extends Context.Service<
       issueUuid: string,
       projectId: ProjectId,
     ) => Effect.Effect<ThreadId, IssueTrackerError>;
+    /** Runs the auto-dev poll for one project now; returns how many threads it started. */
+    readonly pull: (projectId: ProjectId) => Effect.Effect<number, IssueTrackerError>;
     /** False when the issue's workflow has no transition to `statusId`. */
     readonly setStatus: (
       trackerId: string,
@@ -99,7 +101,12 @@ function normalizeLocalPath(path: string, platform: NodeJS.Platform): string {
 /** Prompt text for an issue. `auto` adds the no-commit rule and drops the marker. */
 export function buildIssuePrompt(
   issue: Issue,
-  options: { readonly auto: boolean; readonly attachmentPaths?: ReadonlyArray<string> },
+  options: {
+    readonly auto: boolean;
+    /** The server commits and pushes the run (the tracker project ticks Commit). */
+    readonly autoCommit?: boolean;
+    readonly attachmentPaths?: ReadonlyArray<string>;
+  },
 ): string {
   let description = issue.descriptionText.trim();
   if (options.auto && hasAutoDevMarker(description)) {
@@ -128,8 +135,15 @@ export function buildIssuePrompt(
       "",
       "## 约束",
       "- 这是自动开发任务：请根据以上问题信息直接完成开发与必要的验证。",
-      "- 禁止执行任何提交操作：不要运行 git commit、git push、git tag、git merge、git rebase，也不要创建 PR。",
-      "- 完成后总结改动的文件和验证结果；系统会用工单号、标题和这段总结自动提交并推送。",
+      ...(options.autoCommit
+        ? [
+            `- 提交由系统自动完成：任务结束后系统会以「${commitRef(issue.key)} ${issue.title}」为标题、你的最终总结为描述提交并推送。因此你不要自己运行 git commit、git push、git tag、git merge、git rebase，也不要创建 PR。`,
+            "- 最后一条回复请总结改动的文件和验证结果，它会原样作为提交描述。",
+          ]
+        : [
+            "- 不要运行 git commit、git push、git tag、git merge、git rebase，也不要创建 PR；改动保留在工作区，由用户自行提交。",
+            "- 最后一条回复请总结改动的文件和验证结果，它会作为工单评论发布。",
+          ]),
     );
   }
   return lines.join("\n");
@@ -486,6 +500,12 @@ export const layer = Layer.effect(
         return yield* fail(`No default model set for project ${project.title}.`);
       }
       const tracker = yield* trackerFor(settings, listed.trackerId);
+      const key = autoDevKey(tracker.id, listed.uuid);
+      const existing = (yield* issueThreads).get(key);
+      if (existing !== undefined) {
+        launched.add(key);
+        return existing;
+      }
       const client = yield* clientFor(tracker);
       const loaded = yield* Effect.tryPromise({
         try: () => client.loadIssue(listed.uuid, listed.status),
@@ -493,7 +513,6 @@ export const layer = Layer.effect(
       });
       const issue: Issue = { ...loaded, trackerId: tracker.id };
       const attachmentPaths = yield* downloadForAuto(client, issue);
-      const key = autoDevKey(tracker.id, issue.uuid);
       const result = yield* threadLaunch
         .launch({
           commandId: CommandId.make(`ones-auto:${key}`),
@@ -508,7 +527,11 @@ export const layer = Layer.effect(
               : { type: "root" },
           initialMessage: {
             messageId: MessageId.make(`${AUTO_MESSAGE_PREFIX}${key}`),
-            text: buildIssuePrompt(issue, { auto: true, attachmentPaths }),
+            text: buildIssuePrompt(issue, {
+              auto: true,
+              autoCommit: tracker.autoCommitProjectIds.includes(issue.trackerProjectId),
+              attachmentPaths,
+            }),
             attachments: [],
           },
           createdBy: "system",
@@ -546,30 +569,51 @@ export const layer = Layer.effect(
           .pipe(Effect.mapError(fail));
         if (Option.isNone(project) || seen.has(project.value.id)) continue;
         seen.add(project.value.id);
-        const issues = yield* issuesForProject(settings, project.value, true);
-        for (const issue of issues) {
-          if (launched.has(autoDevKey(issue.trackerId, issue.uuid))) continue;
-          if (!hasAutoDevMarker(issue.descriptionText)) continue;
-          yield* launchAuto(settings, project.value, issue).pipe(
-            Effect.catch((error: IssueTrackerError) =>
-              Effect.logWarning("ONES auto-dev launch failed", {
-                issue: issue.key,
-                error: error.message,
-              }),
-            ),
-          );
-        }
+        yield* pollProject(settings, project.value);
       }
     });
 
+    /** Launches every marked issue of the project that has no thread yet. */
+    const pollProject = Effect.fn("IssueService.pollProject")(function* (
+      settings: ServerSettings,
+      project: Project,
+    ) {
+      const issues = yield* issuesForProject(settings, project, true);
+      const threads = yield* issueThreads;
+      let started = 0;
+      for (const issue of issues) {
+        const key = autoDevKey(issue.trackerId, issue.uuid);
+        if (launched.has(key) || threads.has(key)) continue;
+        if (!hasAutoDevMarker(issue.descriptionText)) continue;
+        yield* launchAuto(settings, project, issue).pipe(
+          Effect.tap(() => Effect.sync(() => started++)),
+          Effect.catch((error: IssueTrackerError) =>
+            Effect.logWarning("ONES auto-dev launch failed", {
+              issue: issue.key,
+              error: error.message,
+            }),
+          ),
+        );
+      }
+      return started;
+    });
+
+    const pull: IssueService["Service"]["pull"] = Effect.fn("IssueService.pull")(
+      function* (projectId) {
+        const settings = yield* readSettings;
+        const project = yield* projects.getById(projectId).pipe(Effect.mapError(fail));
+        if (Option.isNone(project)) return yield* fail(`Unknown project: ${projectId}`);
+        return yield* pollProject(settings, project.value);
+      },
+    );
+
     yield* scheduler.register("ones-auto-dev", pollAutoDev);
 
-    /** Commits and pushes the thread's changes as `<key> <title>` with the run summary as body. */
+    /** Commits and pushes the thread's changes as `#<number> <title>` with the run summary as body. */
     const commitAndPush = Effect.fn("IssueService.commitAndPush")(function* (
       threadId: ThreadId,
       runId: string,
-      client: IssueTrackerClient,
-      issueUuid: string,
+      issue: { readonly key: string; readonly title: string },
       summary: string,
     ) {
       const shell = yield* projections.getThreadShell(threadId);
@@ -577,10 +621,6 @@ export const layer = Layer.effect(
       const project = yield* projects.getById(shell.projectId).pipe(Effect.mapError(fail));
       const cwd = shell.worktreePath ?? Option.getOrUndefined(project)?.workspaceRoot;
       if (cwd === undefined) return;
-      const issue = yield* Effect.tryPromise({
-        try: () => client.loadIssue(issueUuid),
-        catch: fail,
-      });
       const result = yield* git.runStackedAction({
         actionId: `issue-auto-commit:${runId}`,
         cwd,
@@ -631,21 +671,19 @@ export const layer = Layer.effect(
           return { tracker, client };
         }).pipe(Effect.onError(() => Effect.sync(() => commented.delete(run.id))));
         yield* Effect.logInfo("Issue auto-dev summary posted", { ...ref, runId: run.id });
-        yield* commitAndPush(event.threadId, run.id, client, ref.issueUuid, summary).pipe(
-          Effect.catchCause((cause) =>
-            Effect.logWarning("Issue auto-dev commit failed", { ...ref, cause }),
-          ),
-        );
-        const overrides = tracker.projectDoneStatusIds;
-        const doneStatusId =
-          Object.keys(overrides).length === 0
-            ? tracker.doneStatusId
-            : ((yield* Effect.tryPromise({
-                try: async () =>
-                  overrides[(await client.loadIssue(ref.issueUuid)).trackerProjectId],
-                catch: fail,
-              })) ?? tracker.doneStatusId);
-        if (doneStatusId === "") return;
+        const issue = yield* Effect.tryPromise({
+          try: () => client.loadIssue(ref.issueUuid),
+          catch: fail,
+        });
+        if (tracker.autoCommitProjectIds.includes(issue.trackerProjectId)) {
+          yield* commitAndPush(event.threadId, run.id, issue, summary).pipe(
+            Effect.catchCause((cause) =>
+              Effect.logWarning("Issue auto-dev commit failed", { ...ref, cause }),
+            ),
+          );
+        }
+        const doneStatusId = tracker.projectDoneStatusIds[issue.trackerProjectId];
+        if (doneStatusId === undefined) return;
         // Later runs find no transition once the issue is there, so this moves it once.
         const moved = yield* Effect.tryPromise({
           try: () => client.moveToStatus(ref.issueUuid, doneStatusId),
@@ -675,6 +713,7 @@ export const layer = Layer.effect(
       catalog,
       board,
       execute,
+      pull,
       setStatus,
     });
   }),

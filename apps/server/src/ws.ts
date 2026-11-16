@@ -2876,6 +2876,7 @@ export const layerWsRpc = (
         [WS_METHODS.issuesBoard]: () => issueService.board(),
         [WS_METHODS.issuesExecute]: (input) =>
           issueService.execute(input.trackerId, input.issueUuid, input.projectId),
+        [WS_METHODS.issuesPull]: (input) => issueService.pull(input.projectId),
         [WS_METHODS.issuesSetStatus]: (input) =>
           issueService.setStatus(input.trackerId, input.issueUuid, input.statusId),
         [WS_METHODS.projectsEnsureScratch]: () =>

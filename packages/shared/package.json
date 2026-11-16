@@ -459,6 +459,10 @@
       "types": "./src/codexAuthCallback.ts",
       "import": "./src/codexAuthCallback.ts"
     },
+    "./issueCommitMessage": {
+      "types": "./src/issueCommitMessage.ts",
+      "import": "./src/issueCommitMessage.ts"
+    },
     "./codexAuthHandoff": {
       "types": "./src/codexAuthHandoff.ts",
       "import": "./src/codexAuthHandoff.ts"

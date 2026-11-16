@@ -1,19 +1,19 @@
-import { scopeProjectRef } from "@t3tools/client-runtime/environment";
+import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
 import type { EnvironmentId, Issue, ProjectId } from "@t3tools/contracts";
 import { useAtomValue } from "@effect/atom-react";
+import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
-import { useNewThreadHandler } from "../../hooks/useHandleNewThread";
 import { comparablePath } from "../../issues/OnesProjectLinks";
-import { base64ToFile, usePendingIssueFiles } from "../../issues/pendingIssueFiles";
+import { buildThreadRouteParams } from "../../threadRoutes";
 import { environmentServerConfigsAtom, serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { Button } from "../ui/button";
 import { Dialog, DialogHeader, DialogPanel, DialogPopup, DialogTitle } from "../ui/dialog";
 import { Input } from "../ui/input";
 
-/** Lists the tracker issues bound to a project; picking one starts a draft thread seeded from it. */
+/** Lists the tracker issues bound to a project; picking one starts (or opens) its issue thread. */
 export function OnesIssuePickerDialog(props: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -23,8 +23,8 @@ export function OnesIssuePickerDialog(props: {
 }) {
   const { open, onOpenChange, environmentId, projectId } = props;
   const listIssues = useAtomCommand(serverEnvironment.listIssues);
-  const getIssue = useAtomCommand(serverEnvironment.getIssue, { reportFailure: true });
-  const handleNewThread = useNewThreadHandler();
+  const executeIssue = useAtomCommand(serverEnvironment.executeIssue, { reportFailure: true });
+  const navigate = useNavigate();
   const [issues, setIssues] = useState<readonly Issue[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
@@ -60,22 +60,17 @@ export function OnesIssuePickerDialog(props: {
 
   const pick = async (issue: Issue) => {
     setLoadingUuid(issue.uuid);
-    const result = await getIssue({
+    const result = await executeIssue({
       environmentId,
-      input: { issueUuid: issue.uuid, trackerId: issue.trackerId },
+      input: { trackerId: issue.trackerId, issueUuid: issue.uuid, projectId },
     });
     setLoadingUuid(null);
     if (result._tag !== "Success") return;
-    const created = await handleNewThread(scopeProjectRef(environmentId, projectId), {
-      prompt: result.value.prompt,
-    });
-    if (created && result.value.files.length > 0) {
-      usePendingIssueFiles.getState().put(
-        created.threadId,
-        result.value.files.map((file) => base64ToFile(file.name, file.mimeType, file.dataBase64)),
-      );
-    }
     handleOpenChange(false);
+    void navigate({
+      to: "/$environmentId/$threadId",
+      params: buildThreadRouteParams(scopeThreadRef(environmentId, result.value)),
+    });
   };
 
   const needle = filter.trim().toLowerCase();

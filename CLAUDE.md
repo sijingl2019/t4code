@@ -95,14 +95,18 @@ Features:
   exclude by status id) narrows which assigned issues are listed; `issues.catalog` returns the
   tracker's projects and statuses for the settings UI. Auto development picks up issues whose
   description starts with `#!t4code` (`ISSUE_AUTO_DEV_MARKER`). While it is on, the Commit button's
-  message for a thread started from an issue becomes `ONES-123 <title>` + description body (a typed
-  message gets the key prepended): `apps/server/src/issues/issueCommitMessage.ts`, hooked into
+  message for a thread started from an issue becomes `#123 <title>` + description body (a typed
+  message gets `#123` prepended): `packages/shared/src/issueCommitMessage.ts`, applied server-side by
+  `apps/server/src/issues/issueCommitMessage.ts`, hooked into
   `runStackedAction` in upstream `apps/server/src/git/GitManager.ts` (two lines marked `t4code`).
+  The Commit dialog also starts filled with that message for any issue thread (`issueCommitDraft`,
+  passed `ChatView.tsx` → `ThreadDetailsPanel.tsx` → `GitActionsControl.tsx` `defaultCommitMessage`,
+  lines marked `t4code`).
   Each `completed` run of an auto-dev thread (first message id `ones-auto-message:<uuid>`) posts its
-  last assistant message verbatim as an issue comment (`commentRunSummary` in `IssueService.ts`), then
-  commits and pushes the thread's checkout through `GitManager.runStackedAction` (`commit_push`) with
-  `<key> <title>` + that same summary (`autoDevCommitMessage`; the agent itself is told not to commit), then,
-  if the tracker's `doneStatusId` (or the issue's project override in `projectDoneStatusIds`) is set, moves the issue there via the matching workflow transition. RPCs `issues.*` in
+  last assistant message verbatim as an issue comment (`commentRunSummary` in `IssueService.ts`), then,
+  if the issue's tracker project ticks Commit (`autoCommitProjectIds`), commits and pushes the thread's checkout through `GitManager.runStackedAction` (`commit_push`) with
+  `#<number> <title>` + that same summary (`autoDevCommitMessage`; the agent itself is told not to commit), then,
+  if the issue's tracker project has a status in `projectDoneStatusIds`, moves the issue there via the matching workflow transition. RPCs `issues.*` in
   `packages/contracts/src/{issues,rpc}.ts`, scopes in `apps/server/src/auth/RpcAuthorization.ts`,
   handlers in `apps/server/src/ws.ts`, layer in
   `apps/server/src/orchestration-v2/runtimeLayer.ts`, secrets in `apps/server/src/settingsSecrets.ts` (their paths listed in `serverSettings.test.ts` "strictly decoded" case), span aggregates in `apps/server/src/observability/RpcInstrumentation.ts`, mock layer in `apps/server/src/ws.test.ts`.
@@ -112,8 +116,10 @@ Features:
   and a T4 project multi-picker), "Link" dialog opened from the project folder's "…" menu
   (`IssueProjectLinkDialog` in `apps/web/src/issues/OnesProjectLinks.tsx`; an unbound project's folder
   row also shows a link button after its thread count, `SidebarProjectFolderHeader.tsx`), issue picker `components/sidebar/OnesIssuePickerDialog.tsx` (opened from
-  `SidebarProjectFolderHeader.tsx`), attachments handed to the composer via
-  `apps/web/src/issues/pendingIssueFiles.ts` (consumed in `ChatComposer.tsx`).
+  `SidebarProjectFolderHeader.tsx`; picking an issue calls `issues.execute`, so it gets the same `[KEY] title` thread
+  the poller would start and the poller skips it), and "Pull Issues Now" in the folder's "…" menu (`issues.pull` →
+  `pollProject`: the auto-dev poll for that one project, run at once whether or not auto dev is on). Every launch
+  first looks up an existing thread for the issue (`issueThreads`), so an issue never gets a second thread.
 - Sidebar project folder "…" menu (Pin / Edit / Link Issues / Open in File Explorer / Open in VS Code / Archive / Remove) in place of
   the collapse chevron, with an Edit project dialog (name, icon, ONES projects, link to full settings):
   `components/sidebar/ProjectFolderMenu.tsx`, mounted in `SidebarProjectFolderHeader.tsx`

@@ -1400,11 +1400,13 @@ export const OnesSettings = Schema.Struct({
   statusFilter: IssueStatusFilter.pipe(
     Schema.withDecodingDefault(Effect.succeed(Schema.decodeSync(IssueStatusFilter)({}))),
   ),
-  /** Status an auto-dev issue moves to after a completed run; empty leaves the status alone. */
-  doneStatusId: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
-  /** Per tracker project override of `doneStatusId`; workflows differ between projects. */
+  /** Status an auto-dev issue moves to after a completed run, per tracker project; unset leaves it. */
   projectDoneStatusIds: Schema.Record(TrimmedNonEmptyString, TrimmedNonEmptyString).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
+  ),
+  /** Tracker projects whose auto-dev runs are committed and pushed by the server. */
+  autoCommitProjectIds: Schema.Array(TrimmedNonEmptyString).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
   ),
 });
 export type OnesSettings = typeof OnesSettings.Type;
@@ -1973,8 +1975,8 @@ export const ServerSettingsPatch = Schema.Struct({
       email: Schema.optionalKey(TrimmedString),
       password: Schema.optionalKey(SettingsSecretValue),
       statusFilter: Schema.optionalKey(IssueStatusFilter),
-      doneStatusId: Schema.optionalKey(TrimmedString),
       projectDoneStatusIds: Schema.optionalKey(OnesSettings.fields.projectDoneStatusIds),
+      autoCommitProjectIds: Schema.optionalKey(OnesSettings.fields.autoCommitProjectIds),
     }),
   ),
   issueProjectBindings: Schema.optionalKey(Schema.Array(IssueProjectBinding)),
