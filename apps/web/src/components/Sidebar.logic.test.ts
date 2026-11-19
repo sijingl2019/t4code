@@ -1,5 +1,5 @@
 import { presentThreadShell } from "@t3tools/client-runtime/state/models";
-import { isThreadWorking as isSidebarThreadWorking } from "@t3tools/client-runtime/state/thread-inbox";
+import { isThreadInWorkingShelf as isSidebarThreadWorking } from "@t3tools/client-runtime/state/thread-inbox";
 import * as DateTime from "effect/DateTime";
 import { deriveActiveWorkStartedAt } from "../session-logic.ts";
 import { describe, expect, it } from "vite-plus/test";
@@ -1024,12 +1024,15 @@ describe("Working shelf (beta)", () => {
     pendingBackgroundTasks: [backgroundTask],
   };
 
-  it("folds away running threads and threads waiting on background work only", () => {
+  it("folds running and waiting threads into the Working shelf", () => {
     expect(isSidebarThreadWorking({ ...idle, runtime })).toBe(true);
     expect(isSidebarThreadWorking(waiting)).toBe(true);
     expect(isSidebarThreadWorking(idle)).toBe(false);
-    expect(isSidebarThreadWorking({ ...idle, runtime, hasPendingApprovals: true })).toBe(false);
-    expect(isSidebarThreadWorking({ ...idle, runtime, hasPendingUserInput: true })).toBe(false);
+    expect(isSidebarThreadWorking({ ...idle, runtime, hasPendingApprovals: true })).toBe(true);
+    expect(isSidebarThreadWorking({ ...idle, runtime, hasPendingUserInput: true })).toBe(true);
+    expect(isSidebarThreadWorking({ ...idle, runtime, pendingSubagentRequest: "approval" })).toBe(
+      true,
+    );
     expect(
       isSidebarThreadWorking({
         ...waiting,

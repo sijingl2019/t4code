@@ -1677,14 +1677,10 @@ describe("Working section beta", () => {
 
   it("folds unpinned working threads into a collapsed shelf", () => {
     const layout = build();
-    expect(ids(layout)).toEqual([
-      "pinned-working",
-      "finished-late",
-      "asks-approval",
-      "finished-early",
-    ]);
-    expect(layout.workingCount).toBe(1);
-    expect(layout.workingShelfHeaderIndex).toBe(4);
+    expect(ids(layout)).toEqual(["pinned-working", "finished-late", "finished-early"]);
+    expect(layout.workingCount).toBe(2);
+    expect(layout.workingShelfHeaderIndex).toBe(3);
+    expect(ids(build({ workingShelfExpanded: true }))).toContain("asks-approval");
 
     const off = build({ workingShelfEnabled: false });
     expect(ids(off)).toContain("working");
@@ -1724,7 +1720,7 @@ describe("Working section beta", () => {
       inboxReturnAt: (thread) =>
         thread.id === "finished-early" ? Date.parse("2026-06-01T04:00:00.000Z") : undefined,
     });
-    expect(ids(layout).slice(1)).toEqual(["finished-early", "finished-late", "asks-approval"]);
+    expect(ids(layout).slice(1)).toEqual(["finished-early", "finished-late"]);
   });
 
   it("places the shelf after queued tasks and before snoozed and settled threads", () => {

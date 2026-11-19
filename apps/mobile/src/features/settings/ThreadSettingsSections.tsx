@@ -211,9 +211,8 @@ export function WorkingSectionSettings() {
         />
       </SettingsSection>
       <Text className="px-2 text-sm text-foreground-muted">
-        Fold working and monitoring threads into a Working section. They return to the top of the
-        list when they need you. While this is on, active threads are ordered by time and cannot be
-        moved.
+        Fold working, waiting, and monitoring threads into a Working section. While this is on,
+        active threads are ordered by time and cannot be moved.
       </Text>
     </View>
   );

@@ -18,6 +18,7 @@ import {
 import { foldSearchQuery, rankSearchItems, scoreThreadSearch } from "@t3tools/shared/paletteSearch";
 import {
   createInboxReturnTracker,
+  isThreadWaiting,
   isThreadWorking,
   sortInboxThreadsByReturn,
   sortWorkingThreadsBySend,
@@ -752,7 +753,10 @@ export function buildThreadListV2Items(input: {
       settled.push(thread);
     } else if (thread.pinnedAt != null) {
       pinned.push(thread);
-    } else if (workingShelfEnabled && (input.isWorking ?? isThreadWorking)(thread)) {
+    } else if (
+      workingShelfEnabled &&
+      ((input.isWorking ?? isThreadWorking)(thread) || isThreadWaiting(thread))
+    ) {
       working.push(thread);
     } else {
       active.push(thread);

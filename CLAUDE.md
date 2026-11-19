@@ -148,7 +148,11 @@ Features:
   `collapsed` line and the header push in `Sidebar.tsx`, marked `t4code`). Upstream shows an archived
   project only while it has active threads.
 - Running-only thread filter: a header toggle next to the project filter in `Sidebar.tsx` (`runningOnly`,
-  marked `t4code`) keeps only threads with an active runtime and hides empty folders.
+  marked `t4code`) keeps only threads with an active runtime or waiting on approval/input/a sub-thread/background
+  work, and hides empty folders.
+- Working shelf also folds threads waiting on approval, input, or a sub-thread (`isThreadWaiting` /
+  `isThreadInWorkingShelf` in `client-runtime/src/state/threadInbox.ts`, used by web `Sidebar.tsx` and mobile
+  `threadListV2.ts`); upstream returns them to the inbox.
 - Issue board (footer "Issues" button in `SidebarChrome.tsx`, shown while `issueAutoDev.enabled`):
   a `/issues` page like `/pull-requests` (route `routes/_chat.issues.tsx`, listed in
   `isSidebarUtilityPage` in `sidebar/mainAppLocation.ts`, marked `t4code`).

@@ -8,6 +8,7 @@ import {
   withMessageContext,
   deriveAvailableRevertTurnCounts,
   deriveThreadPendingBackgroundTasks,
+  firstVisibleUserMessage,
 } from "./ChatView.logic";
 import { recallCheckoutIsRepo, rememberCheckoutIsRepo } from "./ChatView.logic";
 import { ProviderDriverKind, type ServerProvider } from "@t3tools/contracts";
@@ -41,7 +42,11 @@ import { appAtomRegistry } from "../rpc/atomRegistry";
 import { environmentThreadDetails } from "../state/threads";
 
 import type { Thread } from "../types";
-import { makeThreadFixture, makeThreadProjectionFixture } from "../test-fixtures";
+import {
+  makeStreamingTimelineFixture,
+  makeThreadFixture,
+  makeThreadProjectionFixture,
+} from "../test-fixtures";
 import {
   getAntigravitySendBlockReason,
   resolveComposerProviderSelection,
@@ -98,6 +103,20 @@ const completedTurn = {
   completedAt: "2026-03-29T00:00:10.000Z",
   assistantMessageId: null,
 };
+
+describe("firstVisibleUserMessage", () => {
+  it("reads an inherited opening prompt on a forked thread", () => {
+    const fixture = makeStreamingTimelineFixture();
+    const opening = fixture.visibleTurnItems[0];
+    if (opening?.item.type !== "user_message") throw new Error("Expected an opening user message.");
+
+    expect(
+      firstVisibleUserMessage({
+        visibleTurnItems: [{ ...opening, visibility: "inherited" }],
+      }),
+    ).toEqual({ id: opening.item.messageId, role: "user", text: opening.item.text });
+  });
+});
 
 const readySession = {
   status: "completed" as const,

@@ -104,6 +104,18 @@ import {
 type ThreadProjection = EnvironmentThread["projection"];
 type ThreadStructureRow = ThreadStructure["visibleTurnItems"][number];
 
+/** The first user prompt visible in a thread, including rows inherited by a fork. */
+export function firstVisibleUserMessage(
+  projection: Pick<ThreadStructure, "visibleTurnItems"> | null,
+): { readonly id: MessageId; readonly role: "user"; readonly text: string } | null {
+  const opening = projection?.visibleTurnItems.find(
+    ({ item }) => item.type === "user_message",
+  )?.item;
+  return opening?.type === "user_message"
+    ? { id: opening.messageId, role: "user", text: opening.text }
+    : null;
+}
+
 export const LAST_INVOKED_SCRIPT_BY_PROJECT_KEY = "t3code:last-invoked-script-by-project";
 export const MAX_HIDDEN_MOUNTED_TERMINAL_THREADS = 10;
 

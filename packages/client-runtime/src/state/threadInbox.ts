@@ -30,6 +30,18 @@ export function isThreadWorking(thread: WorkingThreadInput): boolean {
   return !(thread.interactionMode === "plan" && thread.hasActionableProposedPlan && runSettled);
 }
 
+export function isThreadWaiting(thread: WorkingThreadInput): boolean {
+  return (
+    thread.hasPendingApprovals ||
+    thread.hasPendingUserInput ||
+    thread.pendingSubagentRequest != null
+  );
+}
+
+export function isThreadInWorkingShelf(thread: WorkingThreadInput): boolean {
+  return isThreadWaiting(thread) || isThreadWorking(thread);
+}
+
 /**
  * A thread its own client is launching reads as preparing until its first run lands.
  * The server commits the thread before its run, so the list would otherwise place it twice.

@@ -14,6 +14,7 @@ import {
 import {
   deriveAvailableRevertTurnCounts,
   deriveThreadPendingBackgroundTasks,
+  firstVisibleUserMessage,
   presentThreadShellFromProjection,
 } from "./ChatView.logic";
 import { usePullRequestDraftThread } from "./chat/usePullRequestDraftThread";
@@ -498,6 +499,7 @@ export default function ChatView(props: ChatViewProps) {
   });
   const serverThreadProjection = useQuietThreadProjection(routeThreadDetailRef);
   const serverProjection = serverThreadProjection?.projection ?? null;
+  const openingUserMessage = firstVisibleUserMessage(serverProjection);
   // Only the shell-less fallback needs these; with a shell, the shell carries them.
   const fallbackDetailRef = serverThreadShell === null ? routeThreadDetailRef : null;
   const fallbackUpdatedAt = useThreadUpdatedAt(fallbackDetailRef);
@@ -3866,8 +3868,8 @@ export default function ChatView(props: ChatViewProps) {
                 />
 
                 <ThreadDetailsPanel
-                  issueUrl={serverProjection && autoDevIssueUrl(serverProjection.messages)} // t4code
-                  issueCommitDraft={serverProjection && issueCommitDraft(serverProjection.messages)} // t4code
+                  issueUrl={openingUserMessage && autoDevIssueUrl([openingUserMessage])} // t4code
+                  issueCommitDraft={openingUserMessage && issueCommitDraft([openingUserMessage])} // t4code
                   anchor={threadPanelPopoverAnchorRef}
                   handle={threadPanelPopoverHandle}
                   forceNewWorktree={multipleModelSelections !== null}

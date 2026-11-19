@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 import {
   createInboxReturnTracker,
+  isThreadInWorkingShelf,
+  isThreadWaiting,
   isThreadWorking,
   sortInboxThreadsByReturn,
   sortWorkingThreadsBySend,
@@ -234,6 +236,32 @@ describe("createInboxReturnTracker", () => {
     vi.advanceTimersByTime(2_000);
     expect(notify).not.toHaveBeenCalled();
     expect(tracker.returnedAt(thread("a", false))).toBeUndefined();
+  });
+});
+
+describe("working shelf membership", () => {
+  it("includes threads waiting for the user alongside actively working threads", () => {
+    const idle = thread("idle", false);
+    expect(isThreadWaiting(idle)).toBe(false);
+    expect(
+      isThreadInWorkingShelf({
+        ...idle,
+        hasPendingApprovals: true,
+      }),
+    ).toBe(true);
+    expect(
+      isThreadInWorkingShelf({
+        ...idle,
+        hasPendingUserInput: true,
+      }),
+    ).toBe(true);
+    expect(
+      isThreadInWorkingShelf({
+        ...idle,
+        pendingSubagentRequest: "approval",
+      }),
+    ).toBe(true);
+    expect(isThreadInWorkingShelf(thread("working", true))).toBe(true);
   });
 });
 

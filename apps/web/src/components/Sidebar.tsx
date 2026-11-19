@@ -32,7 +32,8 @@ import {
 import {
   asLaunchingThread,
   createInboxReturnTracker,
-  isThreadWorking,
+  isThreadInWorkingShelf,
+  isThreadWaiting,
 } from "@t3tools/client-runtime/state/thread-inbox";
 import { sortSettledThreads } from "@t3tools/client-runtime/state/thread-sort";
 import {
@@ -211,6 +212,7 @@ import {
   type SidebarListItem,
   type SidebarSection,
   resolveSidebarRowThreadId,
+  resolveThreadStatusPill,
 } from "./Sidebar.logic";
 import {
   createSidebarCollisionDetection,
@@ -635,7 +637,9 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
   const working: EnvironmentThreadShell[] = [];
   const inbox = (thread: EnvironmentThreadShell, manuallyMoved = false) =>
     workingShelfEnabled &&
-    (manuallyMoved ? isThreadWorking(thread) : inboxObservation.isWorking(thread))
+    (manuallyMoved
+      ? isThreadInWorkingShelf(thread)
+      : inboxObservation.isWorking(thread) || isThreadWaiting(thread))
       ? working
       : active;
   const snoozed: EnvironmentThreadShell[] = [];
@@ -1133,7 +1137,14 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             : thread,
         );
   const listedThreads = runningOnly
-    ? quietListedThreads.filter((thread) => threadRuntimeIsActive(thread.runtime))
+    ? quietListedThreads.filter(
+        (thread) =>
+          threadRuntimeIsActive(thread.runtime) ||
+          // t4code: also keep threads waiting on approval, input, a sub-thread, or background work
+          ["Waiting", "Pending Approval", "Awaiting Input"].includes(
+            resolveThreadStatusPill({ thread })?.label ?? "",
+          ),
+      )
     : quietListedThreads;
   const routeRowThreadKey =
     routeThreadRef === null
