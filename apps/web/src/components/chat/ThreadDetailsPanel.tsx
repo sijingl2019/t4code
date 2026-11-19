@@ -12,6 +12,7 @@ import { isScratchProject } from "@t3tools/client-runtime/state/projects";
 
 import type { ComposerThreadTarget, DraftId } from "../../composerDraftStore";
 import { useT3ProjectFileScripts } from "../../hooks/useT3ProjectFileScripts";
+import { useVscodeLaunchScripts, type VscodeLaunchScript } from "../../vscode/vscodeLaunchScripts"; // t4code
 import { type EnvMode, type EnvironmentOption } from "../BranchToolbar.logic";
 import { BranchToolbar } from "../BranchToolbar";
 import BaseGitActionsControl from "../GitActionsControl";
@@ -85,6 +86,7 @@ interface ThreadDetailsPanelProps extends Pick<
   onComposerFocusRequest: () => void;
   onOpenChanges?: () => void;
   onRunProjectScript: (script: ProjectScript) => void;
+  onRunLaunchScript?: (script: VscodeLaunchScript) => void; // t4code: .vscode/launch.json
   onAddProjectScript: (input: NewProjectScriptInput) => Promise<ProjectScriptActionResult>;
   onUpdateProjectScript: (
     scriptId: string,
@@ -106,6 +108,12 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
   const activeThreadRef = { environmentId: props.environmentId, threadId: props.threadId };
   const project = useProject(scopeProjectRef(props.environmentId, props.projectId));
   const serverConfig = useServerConfigs().get(props.environmentId);
+  const launchScripts = useVscodeLaunchScripts(
+    props.environmentId,
+    props.activeProjectScripts && visible.scripts ? props.gitCwd : null,
+    serverConfig?.environment.platform.os ?? "unknown",
+    props.workspaceMutationId,
+  ); // t4code
   // A No project thread's folder sits inside the shared scratch root, so it must never get git.
   // Until the config and project load, a No project thread looks like any other folder.
   const offersGit =
@@ -229,6 +237,8 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                         onAddScript={props.onAddProjectScript}
                         onUpdateScript={props.onUpdateProjectScript}
                         onDeleteScript={props.onDeleteProjectScript}
+                        launchScripts={launchScripts}
+                        onRunLaunchScript={props.onRunLaunchScript}
                       />
                     ) : null}
                   </div>

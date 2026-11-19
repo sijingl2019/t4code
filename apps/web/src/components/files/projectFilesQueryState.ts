@@ -76,7 +76,9 @@ export function getProjectFileQueryAtom(
     input: {
       cwd,
       relativePath: relativePath ?? EMPTY_PROJECT_FILE_PATH,
-      ...(relativePath === T3_PROJECT_FILE_NAME ? { allowMissing: true } : {}),
+      ...(relativePath === T3_PROJECT_FILE_NAME || relativePath === ".vscode/launch.json" // t4code
+        ? { allowMissing: true }
+        : {}),
     },
   });
 }
@@ -251,6 +253,7 @@ export function useProjectFileQuery(
   cwd: string,
   relativePath: string | null,
   enabled = true,
+  revision?: string | null,
 ): ProjectFileQueryState {
   // Read media-like paths too; a failed read is how folders with those names are detected.
   const fileAccess = useFilesystemReadAccess(environmentId);
@@ -260,7 +263,7 @@ export function useProjectFileQuery(
     enabled && canReadFiles
       ? getProjectFileQueryAtom(environmentId, cwd, relativePath)
       : EMPTY_PROJECT_FILE_QUERY_ATOM;
-  const result = useAtomValue(atom);
+  const result = useAtomValue(revisionedQuery(atom, revision));
   const refreshAtom = useAtomRefresh(atom);
   const refresh = () => refreshAtom();
   const readData = AsyncResult.getOrElse(result, () => null);

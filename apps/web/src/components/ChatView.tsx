@@ -118,6 +118,7 @@ import {
 } from "@t3tools/client-runtime/environment";
 import { formatModelSlugName, resolveSelectableModel } from "@t3tools/shared/model";
 import { projectScriptCwd, resolveProjectScripts } from "@t3tools/shared/projectScripts";
+import { runVscodeLaunchScript } from "~/vscode/vscodeLaunchScripts"; // t4code
 import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import { orchestrationV2WorktreePending } from "@t3tools/shared/orchestrationV2ThreadError";
 import { resolveThreadReferenceCopyTarget } from "@t3tools/client-runtime/thread-reference";
@@ -3930,6 +3931,9 @@ export default function ChatView(props: ChatViewProps) {
                     ? { onOpenChanges: openChangesFromThreadPanelStable }
                     : {})}
                   onRunProjectScript={runProjectScriptStable}
+                  onRunLaunchScript={(script) =>
+                    runVscodeLaunchScript(runProjectScriptStable, script)
+                  } // t4code
                   onAddProjectScript={saveProjectScriptStable}
                   onUpdateProjectScript={updateProjectScriptStable}
                   onDeleteProjectScript={deleteProjectScriptStable}

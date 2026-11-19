@@ -191,6 +191,34 @@ describe("project query refresh", () => {
     }
   });
 
+  it("refetches a file when the workspace mutation changes", async () => {
+    let fetches = 0;
+    const readAtom = Atom.make(() => {
+      fetches += 1;
+      return AsyncResult.success(file("fresh"));
+    }).pipe(Atom.keepAlive);
+    projectMocks.readFile.mockReturnValue(readAtom);
+    projectMocks.optimisticFile.mockReturnValue(Atom.make(null));
+    const registry = AtomRegistry.make();
+    atomHooks.registry = registry;
+    const read = (mutationId: string | null) =>
+      useProjectFileQuery(environmentId, "/repo", "src/preview.ts", true, mutationId);
+
+    try {
+      read("mutation-1");
+      read("mutation-1");
+      expect(fetches).toBe(1);
+
+      read("mutation-2");
+      await Promise.resolve();
+      read("mutation-2");
+      expect(fetches).toBe(2);
+    } finally {
+      registry.dispose();
+      atomHooks.registry = null;
+    }
+  });
+
   it("replaces an in-flight initial read when a workspace mutation arrives", async () => {
     const requests: Array<ReturnType<typeof deferred<ProjectReadFileResult>>> = [];
     const readAtom = Atom.make(

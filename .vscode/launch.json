@@ -34,6 +34,24 @@
       "port": 9222,
       "webRoot": "${workspaceFolder}/apps/web",
       "timeout": 120000
+    },
+    {
+      "name": "Desktop: build Windows installer",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "program": "${workspaceFolder}/scripts/build-desktop-artifact.ts",
+      "args": ["--platform", "win", "--target", "nsis", "--arch", "x64"],
+      "env": {
+        "PATH": "${workspaceFolder}/node_modules/.bin:${env:PATH}"
+      },
+      "windows": {
+        "env": {
+          "PATH": "${workspaceFolder}\\node_modules\\.bin;${env:PATH}"
+        }
+      },
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
     }
   ],
   "compounds": [

@@ -46,6 +46,7 @@ import {
 } from "./ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { cn } from "~/lib/utils";
+import { VscodeLaunchMenuItems, type VscodeLaunchScript } from "~/vscode/VscodeLaunchMenuItems"; // t4code
 import {
   THREAD_DETAILS_PANEL_CHEVRON_CLASS,
   THREAD_DETAILS_PANEL_ICON_CLASS,
@@ -57,6 +58,7 @@ import {
 export type { NewProjectScriptInput, ProjectScriptActionResult };
 
 const NO_FILE_SCRIPTS: ReadonlyArray<T3ProjectFileScript> = [];
+const NO_LAUNCH_SCRIPTS: ReadonlyArray<VscodeLaunchScript> = [];
 
 interface ProjectScriptsControlProps {
   displayMode?: "toolbar" | "panel";
@@ -73,6 +75,8 @@ interface ProjectScriptsControlProps {
     input: NewProjectScriptInput,
   ) => Promise<ProjectScriptActionResult>;
   onDeleteScript: (scriptId: string) => Promise<ProjectScriptActionResult>;
+  launchScripts?: ReadonlyArray<VscodeLaunchScript>; // t4code
+  onRunLaunchScript?: ((script: VscodeLaunchScript) => void) | undefined; // t4code
 }
 
 export default function ProjectScriptsControl({
@@ -87,6 +91,8 @@ export default function ProjectScriptsControl({
   onAddScript,
   onUpdateScript,
   onDeleteScript,
+  launchScripts = NO_LAUNCH_SCRIPTS,
+  onRunLaunchScript,
 }: ProjectScriptsControlProps) {
   const isPanel = displayMode === "panel";
   const ActionGroup = isPanel ? "div" : Group;
@@ -228,6 +234,12 @@ export default function ProjectScriptsControl({
         );
       })}
       {importMenuItems}
+      <VscodeLaunchMenuItems
+        scripts={launchScripts}
+        separated={scripts.length > 0 || importableScripts.length > 0}
+        density={presentation === "menu" ? "touch" : "default"}
+        onRun={onRunLaunchScript}
+      />
       <MenuItem density={presentation === "menu" ? "touch" : "default"} onClick={openAddDialog}>
         <PlusIcon className="size-4" />
         <MenuItemLabel>{isPanel ? "Add project script" : "Add action"}</MenuItemLabel>
@@ -252,7 +264,7 @@ export default function ProjectScriptsControl({
               </MenuShortcut>
             </MenuItem>
           )}
-          {scripts.length > 0 || importableScripts.length > 0 ? (
+          {scripts.length > 0 || importableScripts.length > 0 || launchScripts.length > 0 ? (
             <MenuSub
               open={actionsMenuOpen.scripts}
               onOpenChange={(open) =>
@@ -362,7 +374,7 @@ export default function ProjectScriptsControl({
             </MenuPopup>
           </Menu>
         </ActionGroup>
-      ) : scripts.length > 0 || importableScripts.length > 0 ? (
+      ) : scripts.length > 0 || importableScripts.length > 0 || launchScripts.length > 0 ? (
         isPanel ? (
           <div
             role="group"

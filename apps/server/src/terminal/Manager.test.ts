@@ -2142,6 +2142,26 @@ it.layer(
       }),
   );
 
+  it.effect.each([
+    { platform: "linux", parentEnv: { PATH: "/usr/bin" }, ref: "PATH" },
+    { platform: "win32", parentEnv: { Path: "C:\\bin" }, ref: "PATH" },
+  ] as const)(
+    "expands ${env:NAME} in terminal env values on $platform",
+    ({ platform, parentEnv, ref }) =>
+      Effect.gen(function* () {
+        const { manager, ptyAdapter } = yield* createManager(5, { env: { ...parentEnv } }).pipe(
+          Effect.provide(layerWithHostPlatform(platform)),
+        );
+        yield* manager.open(
+          openInput({ env: { PATH: `/repo/bin;\${env:${ref}}`, EMPTY: "${env:MISSING}" } }),
+        );
+        const spawnEnv = ptyAdapter.spawnInputs[0]!.env;
+        const pathKey = Object.keys(spawnEnv).find((key) => key.toUpperCase() === "PATH")!;
+        expect(spawnEnv[pathKey]).toBe(`/repo/bin;${Object.values(parentEnv)[0]}`);
+        expect(spawnEnv.EMPTY).toBe("");
+      }),
+  );
+
   it.effect("filters app runtime env variables from terminal sessions", () =>
     Effect.gen(function* () {
       const { manager, ptyAdapter } = yield* createManager(5, {

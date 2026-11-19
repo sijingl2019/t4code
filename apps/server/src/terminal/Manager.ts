@@ -1404,6 +1404,21 @@ function stripAppImageRuntimeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return scrubbed;
 }
 
+// t4code: VS Code launch.json env values reference the inherited env as `${env:NAME}`.
+function expandEnvReferences(
+  value: string,
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform,
+): string {
+  return value.replace(/\$\{env:([^}]+)\}/g, (_, name: string) => {
+    const key =
+      platform === "win32"
+        ? Object.keys(env).find((candidate) => candidate.toLowerCase() === name.toLowerCase())
+        : name;
+    return (key === undefined ? undefined : env[key]) ?? "";
+  });
+}
+
 function createTerminalSpawnEnv(
   baseEnv: NodeJS.ProcessEnv,
   runtimeEnv: Record<string, string> | null | undefined,
@@ -1432,7 +1447,7 @@ function createTerminalSpawnEnv(
           : undefined;
       spawnEnv[existingKey ?? key] = expandHomeVariable(
         platform === "win32" ? key.toUpperCase() : key,
-        value,
+        expandEnvReferences(value, spawnEnv, platform), // t4code: launch.json `${env:NAME}`
         home,
       );
     }
