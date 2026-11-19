@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { parseVscodeLaunchScripts } from "./vscodeLaunchScripts";
+import {
+  parseVscodeLaunchScripts,
+  pythonCommand,
+  readPythonInterpreterSetting,
+} from "./vscodeLaunchScripts";
 
 const LAUNCH = `{
   // comments and trailing commas are allowed
@@ -45,5 +49,46 @@ describe("parseVscodeLaunchScripts", () => {
 
   it("ignores unparseable files", () => {
     expect(parseVscodeLaunchScripts("not json", "/repo", "linux")).toEqual([]);
+  });
+});
+
+describe("debugpy configs", () => {
+  const PY = `{ "configurations": [
+    { "name": "App", "type": "debugpy", "request": "launch", "program": "\${workspaceFolder}/app.py", "args": ["--port", "80"] },
+    { "name": "Mod", "type": "debugpy", "request": "launch", "module": "pkg.main", "python": "/opt/py/bin/python" },
+    { "name": "Raw", "type": "python", "request": "launch", "program": "x.py", "args": "--a 1" },
+    { "name": "Attach", "type": "debugpy", "request": "attach" },
+  ] }`;
+
+  it("runs under the configured or settings interpreter, else asks for one", () => {
+    const [app, mod, raw, ...rest] = parseVscodeLaunchScripts(PY, "/repo", "linux");
+    expect(rest).toEqual([]);
+    expect(app?.python).toEqual({ tail: "app.py --port 80", interpreter: null, os: "linux" });
+    expect(mod?.command).toBe("/opt/py/bin/python -m pkg.main");
+    expect(raw?.python?.tail).toBe("x.py --a 1");
+    const withSetting = parseVscodeLaunchScripts(
+      PY,
+      "/repo",
+      "linux",
+      "${workspaceFolder}/.venv/bin/python",
+    );
+    expect(withSetting[0]?.command).toBe("./.venv/bin/python app.py --port 80");
+  });
+
+  it("reads the interpreter from VS Code settings", () => {
+    expect(readPythonInterpreterSetting(`{ // c\n "python.defaultInterpreterPath": "py", }`)).toBe(
+      "py",
+    );
+    expect(readPythonInterpreterSetting("{}")).toBeNull();
+  });
+
+  it("quotes interpreter paths per shell", () => {
+    expect(pythonCommand("C:\\Program Files\\Py\\python.exe", "a.py", "windows")).toBe(
+      '& "C:\\Program Files\\Py\\python.exe" a.py',
+    );
+    expect(pythonCommand("${workspaceFolder}\\.venv\\Scripts\\python.exe", "a.py", "windows")).toBe(
+      ".\\.venv\\Scripts\\python.exe a.py",
+    );
+    expect(pythonCommand("python", "", "linux")).toBe("python");
   });
 });

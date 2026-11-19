@@ -119,6 +119,7 @@ import {
 import { formatModelSlugName, resolveSelectableModel } from "@t3tools/shared/model";
 import { projectScriptCwd, resolveProjectScripts } from "@t3tools/shared/projectScripts";
 import { runVscodeLaunchScript } from "~/vscode/vscodeLaunchScripts"; // t4code
+import { useVscodeLaunchRunner } from "~/vscode/VscodeInterpreterPicker"; // t4code
 import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import { orchestrationV2WorktreePending } from "@t3tools/shared/orchestrationV2ThreadError";
 import { resolveThreadReferenceCopyTarget } from "@t3tools/client-runtime/thread-reference";
@@ -1938,6 +1939,11 @@ export default function ChatView(props: ChatViewProps) {
     setTerminalUiLaunchContext,
     setThreadError,
   });
+  const vscodeLaunchRunner = useVscodeLaunchRunner({
+    environmentId,
+    cwd: gitCwd,
+    run: (script) => runVscodeLaunchScript(runProjectScriptStable, script),
+  }); // t4code
   const {
     saveProjectScript: saveProjectScriptStable,
     updateProjectScript: updateProjectScriptStable,
@@ -3931,9 +3937,7 @@ export default function ChatView(props: ChatViewProps) {
                     ? { onOpenChanges: openChangesFromThreadPanelStable }
                     : {})}
                   onRunProjectScript={runProjectScriptStable}
-                  onRunLaunchScript={(script) =>
-                    runVscodeLaunchScript(runProjectScriptStable, script)
-                  } // t4code
+                  onRunLaunchScript={vscodeLaunchRunner.runScript} // t4code
                   onAddProjectScript={saveProjectScriptStable}
                   onUpdateProjectScript={updateProjectScriptStable}
                   onDeleteProjectScript={deleteProjectScriptStable}
@@ -3944,6 +3948,7 @@ export default function ChatView(props: ChatViewProps) {
                     contextWindow: activeContextWindow,
                   }}
                 />
+                {vscodeLaunchRunner.dialog /* t4code */}
 
                 <PullRequestThreadDialogHost
                   threadKey={activeThreadKey}

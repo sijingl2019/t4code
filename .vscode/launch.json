@@ -43,11 +43,15 @@
       "program": "${workspaceFolder}/scripts/build-desktop-artifact.ts",
       "args": ["--platform", "win", "--target", "nsis", "--arch", "x64"],
       "env": {
-        "PATH": "${workspaceFolder}/node_modules/.bin:${env:PATH}"
+        "PATH": "${workspaceFolder}/node_modules/.bin:${env:PATH}",
+        "ELECTRON_MIRROR": "https://npmmirror.com/mirrors/electron/",
+        "ELECTRON_BUILDER_BINARIES_MIRROR": "https://npmmirror.com/mirrors/electron-builder-binaries/"
       },
       "windows": {
         "env": {
-          "PATH": "${workspaceFolder}\\node_modules\\.bin;${env:PATH}"
+          "PATH": "${workspaceFolder}\\node_modules\\.bin;${env:PATH}",
+          "ELECTRON_MIRROR": "https://npmmirror.com/mirrors/electron/",
+          "ELECTRON_BUILDER_BINARIES_MIRROR": "https://npmmirror.com/mirrors/electron-builder-binaries/"
         }
       },
       "console": "integratedTerminal",

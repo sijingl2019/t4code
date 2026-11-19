@@ -166,7 +166,10 @@ Features:
   `issueUrl` from `ChatView.tsx` into `chat/ThreadDetailsPanel.tsx` (lines marked `t4code`).
 - VS Code launch configs in Actions: the thread details Actions menu lists `.vscode/launch.json` `node` /
   `node-terminal` `launch` configs under "From launch.json" (`apps/web/src/vscode/`), run in a new terminal
-  with their `cwd`/`env` (platform overrides applied, `${workspaceFolder}` resolved). Lines marked `t4code`
+  with their `cwd`/`env` (platform overrides applied, `${workspaceFolder}` resolved). `debugpy`/`python` configs
+  run as `<interpreter> program|-m module args` (no debugger): interpreter from the config's `python`, else
+  `.vscode/settings.json` `python.defaultInterpreterPath`, else a "Select Interpreter" picker
+  (`VscodeInterpreterPicker.tsx`, hosted in `ChatView.tsx`) that saves the choice to that setting. Lines marked `t4code`
   in `ProjectScriptsControl.tsx`, `chat/ThreadDetailsPanel.tsx`, `ChatView.tsx`, `files/projectFilesQueryState.ts`
   (`allowMissing`); the server expands `${env:NAME}` in terminal env values (`expandEnvReferences` in
   `apps/server/src/terminal/Manager.ts`).

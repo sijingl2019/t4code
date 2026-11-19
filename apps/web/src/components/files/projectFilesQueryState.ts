@@ -76,7 +76,9 @@ export function getProjectFileQueryAtom(
     input: {
       cwd,
       relativePath: relativePath ?? EMPTY_PROJECT_FILE_PATH,
-      ...(relativePath === T3_PROJECT_FILE_NAME || relativePath === ".vscode/launch.json" // t4code
+      ...(relativePath === T3_PROJECT_FILE_NAME ||
+      relativePath === ".vscode/launch.json" || // t4code
+      relativePath === ".vscode/settings.json" // t4code
         ? { allowMissing: true }
         : {}),
     },
