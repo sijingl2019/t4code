@@ -3100,10 +3100,7 @@
     {
       "t": "span",
       "i": 2,
-      "c": [
-        " ",
-        "på datorn som öppnade den här sidan"
-      ]
+      "c": [" ", "på datorn som öppnade den här sidan"]
     }
   ],
   "b2d53b4d1d48fbef": [
@@ -3115,10 +3112,7 @@
     {
       "t": "span",
       "i": 2,
-      "c": [
-        " ",
-        "· den som kör den får den här åtkomsten"
-      ]
+      "c": [" ", "· den som kör den får den här åtkomsten"]
     }
   ],
   "c54cc9c75db9dc58": "Godkänn bara en inloggning som du själv precis har startat.",
@@ -10257,6 +10251,7 @@
   "4beeab8d1814b251": "Diffar och pull requests",
   "3b958faa12d54484": "Kortkommandon",
   "1a6679bbe62703b2": "SnapShots",
+  "64e3491a7ce31a52": "Translation",
   "2ab325baee3ec9a3": "Schemalagda uppgifter",
   "0a59e086514a62a9": "Versionshantering och ärenden",
   "4889f7885396c26b": "Worktrees",
@@ -10425,7 +10420,6 @@
   "e6fd69a8a3bb69e2": "modell api api-nyckel openai openrouter anthropic ollama lm studio anpassad slutpunkt bas-url trådtitlar commit-meddelanden",
   "50d9683c8b6c152d": "Global memory",
   "9de0e5764de608c6": "memory remember summarize summary threads recall claude-mem",
-  "64e3491a7ce31a52": "Translation",
   "f2b07faba1229ce7": "Intervall för hälsokontroll",
   "5c9dc9970db79fe2": "uppdatera tillgänglighet versioner autentiseringsstatus modeller bakgrundskontroller sekunder av",
   "056ba6a180d114b5": "tillåt inaktivera aktivera öppna styr förhandsvisning verktyg sessioner projekt åsidosätt",

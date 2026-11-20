@@ -3101,10 +3101,7 @@
     {
       "t": "span",
       "i": 2,
-      "c": [
-        " ",
-        "auf dem Computer, der diese Seite geöffnet hat"
-      ]
+      "c": [" ", "auf dem Computer, der diese Seite geöffnet hat"]
     }
   ],
   "b2d53b4d1d48fbef": [
@@ -3116,10 +3113,7 @@
     {
       "t": "span",
       "i": 2,
-      "c": [
-        " ",
-        "· wer es ausführt, erhält diesen Zugriff"
-      ]
+      "c": [" ", "· wer es ausführt, erhält diesen Zugriff"]
     }
   ],
   "c54cc9c75db9dc58": "Genehmige nur eine Anmeldung, die du gerade selbst gestartet hast.",
@@ -10249,6 +10243,7 @@
   "4beeab8d1814b251": "Diffs & Pull Requests",
   "3b958faa12d54484": "Tastenkürzel",
   "1a6679bbe62703b2": "SnapShots",
+  "64e3491a7ce31a52": "Translation",
   "2ab325baee3ec9a3": "Geplante Aufgaben",
   "0a59e086514a62a9": "Versionskontrolle & Issues",
   "4889f7885396c26b": "Worktrees",
@@ -10417,7 +10412,6 @@
   "e6fd69a8a3bb69e2": "modell api api-schlüssel openai openrouter anthropic ollama lm studio eigener endpunkt basis-url thread-titel commit-nachrichten",
   "50d9683c8b6c152d": "Global memory",
   "9de0e5764de608c6": "memory remember summarize summary threads recall claude-mem",
-  "64e3491a7ce31a52": "Translation",
   "f2b07faba1229ce7": "Intervall der Zustandsprüfung",
   "5c9dc9970db79fe2": "aktualisieren verfügbarkeit versionen anmeldestatus modelle hintergrund prüfungen sekunden aus",
   "056ba6a180d114b5": "erlauben deaktivieren aktivieren öffnen steuern vorschau tools sitzungen projekt überschreiben",

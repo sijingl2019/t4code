@@ -88,9 +88,20 @@ describe("searchSettings", () => {
     });
   });
 
+  it("finds translation on its own settings page", () => {
+    expect(SETTINGS_NAV_GROUPS.flatMap((group) => group.paths)).toContain("/settings/translation");
+    expect(searchSettings("translation").find((item) => item.id === "translation")).toMatchObject({
+      id: "translation",
+      to: "/settings/translation",
+    });
+  });
+
   it("matches normalized title substrings", () => {
     expect(searchSettings("  WORD   WRAP  ", ITEMS).map((item) => item.id)).toEqual(["word-wrap"]);
-    expect(searchSettings("glass").map((item) => item.id)).toEqual(["setting-glass-opacity"]);
+    expect(searchSettings("glass").map((item) => item.id)).toEqual([
+      "setting-glass-opacity",
+      "window-background-blur",
+    ]);
     expect(searchSettings("panel animations").map((item) => item.id)).toEqual(["panel-animations"]);
     expect(searchSettings("thè\u{1ab0}mes")[0]?.id).toBe("theme");
     const localeLowerCase = vi.spyOn(String.prototype, "toLocaleLowerCase").mockReturnValue("gıt");

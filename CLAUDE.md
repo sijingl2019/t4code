@@ -153,8 +153,8 @@ Features:
 - Working shelf also folds threads waiting on approval, input, or a sub-thread (`isThreadWaiting` /
   `isThreadInWorkingShelf` in `client-runtime/src/state/threadInbox.ts`, used by web `Sidebar.tsx` and mobile
   `threadListV2.ts`); upstream returns them to the inbox.
-- Issue board (footer "Issues" button in `SidebarChrome.tsx`, shown while `issueAutoDev.enabled`):
-  a `/issues` page like `/pull-requests` (route `routes/_chat.issues.tsx`, listed in
+- Issue board (footer "Issue board" button in `SidebarChrome.tsx`, shown while `issueAutoDev.enabled`):
+  a `/issue-board` page like `/pull-requests` (route `routes/_chat.issue-board.tsx`; upstream owns `/issues`, listed in
   `isSidebarUtilityPage` in `sidebar/mainAppLocation.ts`, marked `t4code`).
   `apps/web/src/issues/IssueBoardPage.tsx` lists the user's open issues in every tracker project, plus finished ones that have a thread (unlinked ones cannot be run)
   (`issues.board`), changes their status (`issues.setStatus`, via `moveToStatus`), and runs one

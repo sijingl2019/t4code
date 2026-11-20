@@ -8,6 +8,7 @@ import {
   EnvironmentId,
   type LocalApi,
   ProjectId,
+  RunId,
   ThreadId,
   type ScopedThreadRef,
 } from "@t3tools/contracts";
@@ -137,6 +138,76 @@ function threadShell(projectId: ProjectId, index: number): EnvironmentThreadShel
     title: `Thread ${index}`,
   });
 }
+
+describe("sidebar running filter", () => {
+  it("opens collapsed project folders when running-only starts", async () => {
+    using stack = new DisposableStack();
+    const previousSettings = getClientSettings();
+    stack.defer(() => __setClientSettingsForTests(previousSettings));
+    __setClientSettingsForTests({
+      ...DEFAULT_CLIENT_SETTINGS,
+      boringSidebarEnabled: true,
+    });
+
+    const activeProject = project("active");
+    const idleThread = threadShell(activeProject.id, 0);
+    const runningShell = threadShell(activeProject.id, 1);
+    const runningThread = {
+      ...runningShell,
+      title: "Running thread",
+      runtime: {
+        status: "running" as const,
+        activeRunId: RunId.make("run-active"),
+        providerInstanceId: runningShell.providerInstanceId,
+        providerName: null,
+        lastError: null,
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    };
+    vi.mocked(useNowMinute).mockReturnValue("2026-01-01T00:00");
+    vi.mocked(useProjects).mockReturnValue([activeProject]);
+    vi.mocked(useQuietThreadShells).mockReturnValue([runningThread, idleThread]);
+    vi.mocked(useHandleNewThread).mockReturnValue({
+      activeDraftThread: null,
+      activeThread: null,
+      defaultProjectRef: {
+        environmentId: activeProject.environmentId,
+        projectId: activeProject.id,
+      },
+      defaultProjectFallbackReady: true,
+      handleNewThread: vi.fn().mockResolvedValue(null),
+      routeDraftId: null,
+      routeThreadRef: null,
+    });
+
+    await using screen = await render(
+      <SidebarProvider>
+        <Sidebar routeReveal={{ observedKey: null, pendingKey: null }} />
+      </SidebarProvider>,
+    );
+    const folder = screen.getByRole("button", { name: /^active/ });
+    await expect.element(screen.getByText("Running thread")).toBeInTheDocument();
+    await userEvent.click(folder);
+    await expect.element(folder).toHaveAttribute("aria-expanded", "false");
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Show running threads only", exact: true }),
+    );
+    await expect.element(folder).toHaveAttribute("aria-expanded", "true");
+    await expect.element(screen.getByText("Running thread")).toBeInTheDocument();
+    await expect.element(screen.getByText("Thread 0")).not.toBeInTheDocument();
+
+    await userEvent.click(folder);
+    await expect.element(folder).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(screen.getByRole("button", { name: "Show all threads", exact: true }));
+    await expect.element(folder).toHaveAttribute("aria-expanded", "false");
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Show running threads only", exact: true }),
+    );
+    await expect.element(folder).toHaveAttribute("aria-expanded", "true");
+  });
+});
 
 describe("sidebar render isolation", () => {
   // regression: #33100 Cmd+J re-rendered every sidebar row, which took hundreds of ms with many threads
@@ -395,5 +466,82 @@ describe("sidebar settled pagination", () => {
     const loadedRows = screen.container.querySelectorAll("[data-thread-item]").length;
     await act(() => moreButton.click());
     expect(screen.container.querySelectorAll("[data-thread-item]")).toHaveLength(loadedRows);
+  });
+});
+
+describe("sidebar settled project folders", () => {
+  it("groups settled threads under their project folders", async () => {
+    using stack = new DisposableStack();
+    const previousSettings = getClientSettings();
+    stack.defer(() => __setClientSettingsForTests(previousSettings));
+    __setClientSettingsForTests({
+      ...DEFAULT_CLIENT_SETTINGS,
+      boringSidebarEnabled: true,
+    });
+    const alpha = project("alpha");
+    const beta = project("beta");
+    const threads = [
+      makeThreadFixture({
+        environmentId: alpha.environmentId,
+        projectId: alpha.id,
+        id: ThreadId.make("settled-alpha"),
+        title: "Alpha settled",
+        settledOverride: "settled",
+        settledAt: "2026-01-01T00:00:00.000Z",
+      }),
+      makeThreadFixture({
+        environmentId: beta.environmentId,
+        projectId: beta.id,
+        id: ThreadId.make("settled-beta"),
+        title: "Beta settled",
+        settledOverride: "settled",
+        settledAt: "2026-01-01T00:00:00.000Z",
+      }),
+    ];
+    vi.mocked(useProjects).mockReturnValue([alpha, beta]);
+    vi.mocked(useQuietThreadShells).mockReturnValue(threads);
+    vi.mocked(useThreadRouteTarget).mockReturnValue(null);
+    vi.mocked(useHandleNewThread).mockReturnValue({
+      activeDraftThread: null,
+      activeThread: null,
+      defaultProjectRef: { environmentId: alpha.environmentId, projectId: alpha.id },
+      defaultProjectFallbackReady: true,
+      handleNewThread: vi.fn().mockResolvedValue(null),
+      routeDraftId: null,
+      routeThreadRef: null,
+    });
+    vi.mocked(useServerConfigs).mockReturnValue(
+      new Map([
+        [
+          alpha.environmentId,
+          {
+            scratchWorkspaceRoot: null,
+            shellThreadFamilies: false,
+          } as unknown as EnvironmentServerConfig,
+        ],
+      ]),
+    );
+
+    await using screen = await render(
+      <SidebarProvider>
+        <Sidebar routeReveal={{ observedKey: null, pendingKey: null }} />
+      </SidebarProvider>,
+    );
+    const shelf = screen.container.querySelector<HTMLElement>(
+      '[data-sidebar-row="shelf:settled"]',
+    )!;
+    if (shelf.getAttribute("aria-expanded") === "false") await act(() => shelf.click());
+
+    const settledFolders = Array.from(
+      screen.container.querySelectorAll<HTMLElement>('[data-sidebar-row^="settled-folder:"]'),
+    );
+    expect(settledFolders).toHaveLength(2);
+    const alphaFolder = settledFolders.find((folder) => folder.textContent?.includes("alpha"));
+    expect(alphaFolder).toBeDefined();
+    const alphaRow = screen.getByText("Alpha settled").element().closest("[data-sidebar-row]");
+    expect(alphaRow).toHaveAttribute(
+      "data-sidebar-parent",
+      alphaFolder!.getAttribute("data-sidebar-row"),
+    );
   });
 });

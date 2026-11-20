@@ -3100,10 +3100,7 @@
     {
       "t": "span",
       "i": 2,
-      "c": [
-        " ",
-        "en el ordenador que abrió esta página"
-      ]
+      "c": [" ", "en el ordenador que abrió esta página"]
     }
   ],
   "b2d53b4d1d48fbef": [
@@ -3115,10 +3112,7 @@
     {
       "t": "span",
       "i": 2,
-      "c": [
-        " ",
-        "· quien lo ejecute obtiene este acceso"
-      ]
+      "c": [" ", "· quien lo ejecute obtiene este acceso"]
     }
   ],
   "c54cc9c75db9dc58": "Aprueba solo un inicio de sesión que acabes de iniciar.",
@@ -10247,6 +10241,7 @@
   "4beeab8d1814b251": "Diffs y pull requests",
   "3b958faa12d54484": "Atajos de teclado",
   "1a6679bbe62703b2": "SnapShots",
+  "64e3491a7ce31a52": "Translation",
   "2ab325baee3ec9a3": "Tareas programadas",
   "0a59e086514a62a9": "Control de versiones e issues",
   "4889f7885396c26b": "Worktrees",
@@ -10415,7 +10410,6 @@
   "e6fd69a8a3bb69e2": "modelo api clave de api openai openrouter anthropic ollama lm studio endpoint personalizado url base títulos de hilos mensajes de commit",
   "50d9683c8b6c152d": "Global memory",
   "9de0e5764de608c6": "memory remember summarize summary threads recall claude-mem",
-  "64e3491a7ce31a52": "Translation",
   "f2b07faba1229ce7": "Intervalo de comprobación de estado",
   "5c9dc9970db79fe2": "actualizar disponibilidad versiones estado de autenticación modelos sondeos en segundo plano segundos desactivado",
   "056ba6a180d114b5": "permitir desactivar activar abrir controlar herramientas de vista previa sesiones proyecto anulación",

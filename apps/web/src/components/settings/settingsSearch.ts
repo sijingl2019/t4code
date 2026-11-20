@@ -28,6 +28,7 @@ export type SettingsPath =
   | "/settings/keybindings"
   | "/settings/snap-shot"
   | "/settings/providers"
+  | "/settings/translation"
   | "/settings/threads"
   | "/settings/browser"
   | "/settings/devices"
@@ -103,6 +104,7 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/keybindings": msg("Keybindings"),
   "/settings/snap-shot": msg("SnapShots"),
   "/settings/providers": msg("Providers"),
+  "/settings/translation": msg("Translation"),
   "/settings/threads": msg("Threads"),
   "/settings/browser": msg("Browser"),
   "/settings/devices": msg("Devices"),
@@ -151,6 +153,7 @@ export const SETTINGS_NAV_GROUPS: ReadonlyArray<{
     heading: msg("Agents"),
     paths: [
       "/settings/providers",
+      "/settings/translation",
       "/settings/threads",
       "/settings/browser",
       "/settings/devices",
@@ -1089,10 +1092,10 @@ export const SETTINGS_SEARCH_ITEMS = [
   {
     id: "translation",
     title: msg("Translation"),
-    to: "/settings/providers",
+    to: "/settings/translation",
     scope: "environment",
+    environmentOnly: true,
     searchTerms: ["translate translation language google openai 翻译 selection"],
-    providerSettingsOnly: true,
   },
   {
     id: "provider-health-check-interval",
@@ -1514,6 +1517,7 @@ const SETTINGS_CATEGORY_SCOPES: Readonly<Record<SettingsPath, SettingsSearchScop
   "/settings/snap-shot": null,
   "/settings/keybindings": null,
   "/settings/providers": null,
+  "/settings/translation": "environment",
   "/settings/threads": null,
   "/settings/browser": null,
   "/settings/devices": null,

@@ -23,9 +23,11 @@ import { Route as ChatSettingsRouteImport } from './routes/_chat.settings'
 import { Route as ChatPullRequestsRouteImport } from './routes/_chat.pull-requests'
 import { Route as ChatNewRouteImport } from './routes/_chat.new'
 import { Route as ChatIssuesRouteImport } from './routes/_chat.issues'
+import { Route as ChatIssueBoardRouteImport } from './routes/_chat.issue-board'
 import { Route as ThreadsEnvironmentIdThreadIdRouteImport } from './routes/threads.$environmentId.$threadId'
 import { Route as ChatSettingsWorktreesRouteImport } from './routes/_chat.settings.worktrees'
 import { Route as ChatSettingsVoiceRouteImport } from './routes/_chat.settings.voice'
+import { Route as ChatSettingsTranslationRouteImport } from './routes/_chat.settings.translation'
 import { Route as ChatSettingsThreadsRouteImport } from './routes/_chat.settings.threads'
 import { Route as ChatSettingsStorageRouteImport } from './routes/_chat.settings.storage'
 import { Route as ChatSettingsSourceControlRouteImport } from './routes/_chat.settings.source-control'
@@ -123,6 +125,11 @@ const ChatIssuesRoute = ChatIssuesRouteImport.update({
   path: '/issues',
   getParentRoute: () => ChatRoute,
 } as any)
+const ChatIssueBoardRoute = ChatIssueBoardRouteImport.update({
+  id: '/issue-board',
+  path: '/issue-board',
+  getParentRoute: () => ChatRoute,
+} as any)
 const ThreadsEnvironmentIdThreadIdRoute =
   ThreadsEnvironmentIdThreadIdRouteImport.update({
     id: '/threads/$environmentId/$threadId',
@@ -137,6 +144,11 @@ const ChatSettingsWorktreesRoute = ChatSettingsWorktreesRouteImport.update({
 const ChatSettingsVoiceRoute = ChatSettingsVoiceRouteImport.update({
   id: '/voice',
   path: '/voice',
+  getParentRoute: () => ChatSettingsRoute,
+} as any)
+const ChatSettingsTranslationRoute = ChatSettingsTranslationRouteImport.update({
+  id: '/translation',
+  path: '/translation',
   getParentRoute: () => ChatSettingsRoute,
 } as any)
 const ChatSettingsThreadsRoute = ChatSettingsThreadsRouteImport.update({
@@ -288,6 +300,7 @@ export interface FileRoutesByFullPath {
   '/guest': typeof GuestRoute
   '/pair': typeof PairRoute
   '/welcome': typeof WelcomeRoute
+  '/issue-board': typeof ChatIssueBoardRoute
   '/issues': typeof ChatIssuesRoute
   '/new': typeof ChatNewRoute
   '/pull-requests': typeof ChatPullRequestsRoute
@@ -321,6 +334,7 @@ export interface FileRoutesByFullPath {
   '/settings/source-control': typeof ChatSettingsSourceControlRoute
   '/settings/storage': typeof ChatSettingsStorageRoute
   '/settings/threads': typeof ChatSettingsThreadsRoute
+  '/settings/translation': typeof ChatSettingsTranslationRoute
   '/settings/voice': typeof ChatSettingsVoiceRoute
   '/settings/worktrees': typeof ChatSettingsWorktreesRoute
   '/threads/$environmentId/$threadId': typeof ThreadsEnvironmentIdThreadIdRoute
@@ -332,6 +346,7 @@ export interface FileRoutesByTo {
   '/guest': typeof GuestRoute
   '/pair': typeof PairRoute
   '/welcome': typeof WelcomeRoute
+  '/issue-board': typeof ChatIssueBoardRoute
   '/issues': typeof ChatIssuesRoute
   '/new': typeof ChatNewRoute
   '/pull-requests': typeof ChatPullRequestsRoute
@@ -366,6 +381,7 @@ export interface FileRoutesByTo {
   '/settings/source-control': typeof ChatSettingsSourceControlRoute
   '/settings/storage': typeof ChatSettingsStorageRoute
   '/settings/threads': typeof ChatSettingsThreadsRoute
+  '/settings/translation': typeof ChatSettingsTranslationRoute
   '/settings/voice': typeof ChatSettingsVoiceRoute
   '/settings/worktrees': typeof ChatSettingsWorktreesRoute
   '/threads/$environmentId/$threadId': typeof ThreadsEnvironmentIdThreadIdRoute
@@ -379,6 +395,7 @@ export interface FileRoutesById {
   '/guest': typeof GuestRoute
   '/pair': typeof PairRoute
   '/welcome': typeof WelcomeRoute
+  '/_chat/issue-board': typeof ChatIssueBoardRoute
   '/_chat/issues': typeof ChatIssuesRoute
   '/_chat/new': typeof ChatNewRoute
   '/_chat/pull-requests': typeof ChatPullRequestsRoute
@@ -413,6 +430,7 @@ export interface FileRoutesById {
   '/_chat/settings/source-control': typeof ChatSettingsSourceControlRoute
   '/_chat/settings/storage': typeof ChatSettingsStorageRoute
   '/_chat/settings/threads': typeof ChatSettingsThreadsRoute
+  '/_chat/settings/translation': typeof ChatSettingsTranslationRoute
   '/_chat/settings/voice': typeof ChatSettingsVoiceRoute
   '/_chat/settings/worktrees': typeof ChatSettingsWorktreesRoute
   '/threads/$environmentId/$threadId': typeof ThreadsEnvironmentIdThreadIdRoute
@@ -427,6 +445,7 @@ export interface FileRouteTypes {
     | '/guest'
     | '/pair'
     | '/welcome'
+    | '/issue-board'
     | '/issues'
     | '/new'
     | '/pull-requests'
@@ -460,6 +479,7 @@ export interface FileRouteTypes {
     | '/settings/source-control'
     | '/settings/storage'
     | '/settings/threads'
+    | '/settings/translation'
     | '/settings/voice'
     | '/settings/worktrees'
     | '/threads/$environmentId/$threadId'
@@ -471,6 +491,7 @@ export interface FileRouteTypes {
     | '/guest'
     | '/pair'
     | '/welcome'
+    | '/issue-board'
     | '/issues'
     | '/new'
     | '/pull-requests'
@@ -505,6 +526,7 @@ export interface FileRouteTypes {
     | '/settings/source-control'
     | '/settings/storage'
     | '/settings/threads'
+    | '/settings/translation'
     | '/settings/voice'
     | '/settings/worktrees'
     | '/threads/$environmentId/$threadId'
@@ -517,6 +539,7 @@ export interface FileRouteTypes {
     | '/guest'
     | '/pair'
     | '/welcome'
+    | '/_chat/issue-board'
     | '/_chat/issues'
     | '/_chat/new'
     | '/_chat/pull-requests'
@@ -551,6 +574,7 @@ export interface FileRouteTypes {
     | '/_chat/settings/source-control'
     | '/_chat/settings/storage'
     | '/_chat/settings/threads'
+    | '/_chat/settings/translation'
     | '/_chat/settings/voice'
     | '/_chat/settings/worktrees'
     | '/threads/$environmentId/$threadId'
@@ -668,6 +692,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatIssuesRouteImport
       parentRoute: typeof ChatRoute
     }
+    '/_chat/issue-board': {
+      id: '/_chat/issue-board'
+      path: '/issue-board'
+      fullPath: '/issue-board'
+      preLoaderRoute: typeof ChatIssueBoardRouteImport
+      parentRoute: typeof ChatRoute
+    }
     '/threads/$environmentId/$threadId': {
       id: '/threads/$environmentId/$threadId'
       path: '/threads/$environmentId/$threadId'
@@ -687,6 +718,13 @@ declare module '@tanstack/react-router' {
       path: '/voice'
       fullPath: '/settings/voice'
       preLoaderRoute: typeof ChatSettingsVoiceRouteImport
+      parentRoute: typeof ChatSettingsRoute
+    }
+    '/_chat/settings/translation': {
+      id: '/_chat/settings/translation'
+      path: '/translation'
+      fullPath: '/settings/translation'
+      preLoaderRoute: typeof ChatSettingsTranslationRouteImport
       parentRoute: typeof ChatSettingsRoute
     }
     '/_chat/settings/threads': {
@@ -907,6 +945,7 @@ interface ChatSettingsRouteChildren {
   ChatSettingsSourceControlRoute: typeof ChatSettingsSourceControlRoute
   ChatSettingsStorageRoute: typeof ChatSettingsStorageRoute
   ChatSettingsThreadsRoute: typeof ChatSettingsThreadsRoute
+  ChatSettingsTranslationRoute: typeof ChatSettingsTranslationRoute
   ChatSettingsVoiceRoute: typeof ChatSettingsVoiceRoute
   ChatSettingsWorktreesRoute: typeof ChatSettingsWorktreesRoute
 }
@@ -937,6 +976,7 @@ const ChatSettingsRouteChildren: ChatSettingsRouteChildren = {
   ChatSettingsSourceControlRoute: ChatSettingsSourceControlRoute,
   ChatSettingsStorageRoute: ChatSettingsStorageRoute,
   ChatSettingsThreadsRoute: ChatSettingsThreadsRoute,
+  ChatSettingsTranslationRoute: ChatSettingsTranslationRoute,
   ChatSettingsVoiceRoute: ChatSettingsVoiceRoute,
   ChatSettingsWorktreesRoute: ChatSettingsWorktreesRoute,
 }
@@ -946,6 +986,7 @@ const ChatSettingsRouteWithChildren = ChatSettingsRoute._addFileChildren(
 )
 
 interface ChatRouteChildren {
+  ChatIssueBoardRoute: typeof ChatIssueBoardRoute
   ChatIssuesRoute: typeof ChatIssuesRoute
   ChatNewRoute: typeof ChatNewRoute
   ChatPullRequestsRoute: typeof ChatPullRequestsRoute
@@ -957,6 +998,7 @@ interface ChatRouteChildren {
 }
 
 const ChatRouteChildren: ChatRouteChildren = {
+  ChatIssueBoardRoute: ChatIssueBoardRoute,
   ChatIssuesRoute: ChatIssuesRoute,
   ChatNewRoute: ChatNewRoute,
   ChatPullRequestsRoute: ChatPullRequestsRoute,

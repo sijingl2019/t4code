@@ -3100,10 +3100,7 @@
     {
       "t": "span",
       "i": 2,
-      "c": [
-        " ",
-        "sur l’ordinateur qui a ouvert cette page"
-      ]
+      "c": [" ", "sur l’ordinateur qui a ouvert cette page"]
     }
   ],
   "b2d53b4d1d48fbef": [
@@ -3115,10 +3112,7 @@
     {
       "t": "span",
       "i": 2,
-      "c": [
-        " ",
-        "· quiconque l’exécute obtient cet accès"
-      ]
+      "c": [" ", "· quiconque l’exécute obtient cet accès"]
     }
   ],
   "c54cc9c75db9dc58": "N’approuvez qu’une connexion que vous venez de lancer.",
@@ -10248,6 +10242,7 @@
   "4beeab8d1814b251": "Diffs et pull requests",
   "3b958faa12d54484": "Raccourcis clavier",
   "1a6679bbe62703b2": "SnapShots",
+  "64e3491a7ce31a52": "Translation",
   "2ab325baee3ec9a3": "Tâches planifiées",
   "0a59e086514a62a9": "Gestion de versions et tickets",
   "4889f7885396c26b": "Worktrees",
@@ -10416,7 +10411,6 @@
   "e6fd69a8a3bb69e2": "modèle api clé d’api openai openrouter anthropic ollama lm studio point de terminaison personnalisé url de base titres de fils messages de commit",
   "50d9683c8b6c152d": "Global memory",
   "9de0e5764de608c6": "memory remember summarize summary threads recall claude-mem",
-  "64e3491a7ce31a52": "Translation",
   "f2b07faba1229ce7": "Intervalle de vérification de l’état",
   "5c9dc9970db79fe2": "actualiser disponibilité versions état d’authentification modèles sondes en arrière-plan secondes désactivé",
   "056ba6a180d114b5": "autoriser désactiver activer ouvrir piloter aperçu outils sessions remplacement par projet",

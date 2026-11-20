@@ -3104,10 +3104,7 @@
     {
       "t": "span",
       "i": 2,
-      "c": [
-        " ",
-        "位于打开此页面的计算机上"
-      ]
+      "c": [" ", "位于打开此页面的计算机上"]
     }
   ],
   "b2d53b4d1d48fbef": [
@@ -3119,10 +3116,7 @@
     {
       "t": "span",
       "i": 2,
-      "c": [
-        " ",
-        "· 运行它的任何人都会获得此访问权限"
-      ]
+      "c": [" ", "· 运行它的任何人都会获得此访问权限"]
     }
   ],
   "c54cc9c75db9dc58": "请只批准你刚刚发起的登录。",
@@ -10264,6 +10258,7 @@
   "4beeab8d1814b251": "差异与 PR",
   "3b958faa12d54484": "快捷键",
   "1a6679bbe62703b2": "快照",
+  "64e3491a7ce31a52": "Translation",
   "2ab325baee3ec9a3": "定时任务",
   "0a59e086514a62a9": "版本控制与 issue",
   "4889f7885396c26b": "工作树",
@@ -10432,7 +10427,6 @@
   "e6fd69a8a3bb69e2": "模型 api api 密钥 openai openrouter anthropic ollama lm studio 自定义 端点 base url 会话标题 提交信息",
   "50d9683c8b6c152d": "Global memory",
   "9de0e5764de608c6": "memory remember summarize summary threads recall claude-mem",
-  "64e3491a7ce31a52": "Translation",
   "f2b07faba1229ce7": "健康检查间隔",
   "5c9dc9970db79fe2": "刷新 可用性 版本 认证状态 模型 后台 探测 秒 关闭",
   "056ba6a180d114b5": "允许 禁用 启用 打开 操控 预览 工具 智能体会话 项目 覆盖",

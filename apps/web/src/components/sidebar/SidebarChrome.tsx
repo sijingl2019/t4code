@@ -1,4 +1,10 @@
-import { ArrowLeftIcon, ArrowRightIcon, ChartNoAxesColumnIcon, SettingsIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  ChartNoAxesColumnIcon,
+  ListTodoIcon,
+  SettingsIcon,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { T, useGT } from "gt-react";
 import { memo } from "react";
@@ -12,9 +18,13 @@ import {
   useCanNavigateHistory,
   type HistoryDirection,
 } from "../../navigationHistory";
-import { primaryServerKeybindingsAtom } from "../../state/server";
+import { environmentServerConfigsAtom, primaryServerKeybindingsAtom } from "../../state/server";
 import { cn } from "../../lib/utils";
-import { useIssuesSupported, usePullRequestsSupported } from "../../state/environments";
+import {
+  useIssuesSupported,
+  usePrimaryEnvironmentId,
+  usePullRequestsSupported,
+} from "../../state/environments";
 import {
   resolveEnvironmentIdentificationPillLabel,
   resolveSidebarStageBackdropVariant,
@@ -236,6 +246,12 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
   });
   const pullRequestsSupported = usePullRequestsSupported();
   const issuesSupported = useIssuesSupported();
+  // t4code: the issue board is offered while auto development is on.
+  const primaryEnvironmentId = usePrimaryEnvironmentId();
+  const serverConfigs = useAtomValue(environmentServerConfigsAtom);
+  const issueAutoDevEnabled =
+    primaryEnvironmentId !== null &&
+    serverConfigs.get(primaryEnvironmentId)?.settings.issueAutoDev.enabled === true;
   const closeMobileSidebar = () => {
     if (isMobile) {
       setOpenMobile(false);
@@ -299,6 +315,16 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
               icon={<IssueGlyph.issue />}
               label={gt("Issues", { $context: "sidebar link to the list of issues" })}
               onClick={handleIssuesClick}
+            />
+          ) : null}
+          {issueAutoDevEnabled ? (
+            <SidebarUtilityItem
+              icon={<ListTodoIcon />}
+              label={gt("Issue board")}
+              onClick={() => {
+                closeMobileSidebar();
+                void navigate({ to: "/issue-board" });
+              }}
             />
           ) : null}
           <SidebarUtilityItem

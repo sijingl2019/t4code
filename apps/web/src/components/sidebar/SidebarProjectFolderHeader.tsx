@@ -34,9 +34,14 @@ const FOLDER_DOT_LABEL = {
   working: msg(", working", { $context: "project folder status, read after its name" }),
 } as const;
 
+export type SidebarProjectFolderSection = "active" | "archived" | "settled";
+
 /** The folder's sidebar tree row; its thread rows name it as their parent. */
-export function sidebarFolderRowId(projectKey: string) {
-  return `folder:${projectKey}`;
+export function sidebarFolderRowId(
+  projectKey: string,
+  section: SidebarProjectFolderSection = "active",
+) {
+  return section === "active" ? `folder:${projectKey}` : `${section}-folder:${projectKey}`;
 }
 
 /**
@@ -46,6 +51,7 @@ export function sidebarFolderRowId(projectKey: string) {
  */
 export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHeader(props: {
   group: SidebarProjectSnapshot;
+  section: SidebarProjectFolderSection;
   collapsed: boolean;
   hiddenThreads: readonly EnvironmentThreadShell[];
   onToggle: (group: SidebarProjectSnapshot) => void;
@@ -59,8 +65,8 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
 }) {
   const gt = useGT();
   const m = useMessages();
-  const { group, collapsed, hiddenThreads } = props;
-  const rowId = sidebarFolderRowId(group.projectKey);
+  const { group, section, collapsed, hiddenThreads } = props;
+  const rowId = sidebarFolderRowId(group.projectKey, section);
   const localLastVisitedAtById = useUiStateStore((state) => state.threadLastVisitedAtById);
   const hasIssueBinding = useHasIssueBinding(group.environmentId, group.workspaceRoot);
   const [issuePickerOpen, setIssuePickerOpen] = useState(false);
