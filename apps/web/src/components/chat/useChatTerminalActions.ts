@@ -7,7 +7,7 @@ import type {
 } from "@t3tools/client-runtime/state/shell";
 import type { Dispatch } from "react";
 import type { ComposerHandleRef } from "../../composerHandleContext";
-import type { selectThreadTerminalUiState } from "../../terminalUiStateStore";
+import { selectThreadTerminalUiState } from "../../terminalUiStateStore";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { useThreadTerminalActions } from "../terminal/useThreadTerminalActions";
 import { getTerminalLabel } from "@t3tools/shared/terminalLabelsCopy";
@@ -224,6 +224,7 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
     }
     const targetCwd = options?.cwd ?? gitCwd ?? activeProject.workspaceRoot;
     const reusableTerminalId =
+      options?.rememberAsLastInvoked !== false ||
       script.stopOnSettle ||
       options?.preferNewTerminal ||
       !canReuseTerminal ||
@@ -256,7 +257,20 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
       // DEFAULT_THREAD_TERMINAL_ID, which a right-panel terminal may already own.
       place: (terminalId) =>
         reusableTerminalId === null
-          ? storeNewTerminal(activeThreadRef, terminalId)
+          ? (() => {
+              const latest = selectThreadTerminalUiState(
+                useTerminalUiStateStore.getState().terminalUiStateByThreadKey,
+                activeThreadRef,
+              );
+              const group = latest.terminalGroups.find(
+                (entry) => entry.id === latest.activeTerminalGroupId,
+              );
+              if (options?.rememberAsLastInvoked !== false && group?.terminalIds.length === 1) {
+                storeSplitTerminal(activeThreadRef, terminalId);
+              } else {
+                storeNewTerminal(activeThreadRef, terminalId);
+              }
+            })()
           : storeEnsureTerminal(activeThreadRef, terminalId, { open: true }),
       ...(reusableTerminalId === null
         ? { size: { cols: SCRIPT_TERMINAL_COLS, rows: SCRIPT_TERMINAL_ROWS } }
