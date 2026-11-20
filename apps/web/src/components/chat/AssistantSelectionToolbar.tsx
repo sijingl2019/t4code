@@ -216,7 +216,7 @@ export function AssistantSelectionToolbar({
         <div
           ref={toolbarRef}
           role="toolbar"
-          className="fixed z-50 flex max-w-[calc(100vw-1rem)] gap-1"
+          className="surface-glass fixed z-50 flex max-w-[calc(100vw-1rem)] items-center rounded-full border border-border/60 p-0.5 text-sm shadow-sm"
           style={{ left: selection.position.x, top: selection.position.y }}
           onPointerDown={(event) => event.preventDefault()}
           onKeyDown={(event) => {
@@ -230,7 +230,7 @@ export function AssistantSelectionToolbar({
           <Button
             type="button"
             size="xs"
-            variant="glass"
+            variant="ghost"
             disabled={tooLong}
             aria-label={tooLong ? "Selection is too long to cite" : "Cite selection in composer"}
             onClick={cite}
@@ -238,10 +238,11 @@ export function AssistantSelectionToolbar({
             <QuoteIcon aria-hidden="true" className="size-3.5" />
             {tooLong ? "Shorten selection" : "Cite"}
           </Button>
+          <span aria-hidden="true" className="h-3.5 w-px shrink-0 bg-border" />
           <Button
             type="button"
             size="xs"
-            variant="glass"
+            variant="ghost"
             aria-label="Translate selection"
             onClick={translate}
           >
