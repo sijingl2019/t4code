@@ -35,6 +35,7 @@ export * from "./sourceControl.ts";
 export * from "./projectClone.ts";
 export * from "./issues.ts";
 export * from "./memory.ts";
+export * from "./translation.ts";
 export * from "./speech.ts";
 export * from "./pullRequest.ts";
 export * from "./pullRequestReviewGuide.ts";

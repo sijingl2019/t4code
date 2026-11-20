@@ -173,6 +173,14 @@ Features:
   in `ProjectScriptsControl.tsx`, `chat/ThreadDetailsPanel.tsx`, `ChatView.tsx`, `files/projectFilesQueryState.ts`
   (`allowMissing`); the server expands `${env:NAME}` in terminal env values (`expandEnvReferences` in
   `apps/server/src/terminal/Manager.ts`).
+- Selection translation: a "Translate" button beside "Cite" on selected assistant text
+  (`AssistantSelectionToolbar.tsx`, lines marked `t4code`) opens `chat/TranslationPopover.tsx`, which calls
+  `translation.translate` on the thread's environment. Server setting `translation` (target/fallback language,
+  identifier/line-break preprocessing, ordered `services` of kind `google` (Cloud Translation v2) or `openai`
+  (chat completions, non-streaming, editable prompts)); every enabled service answers. Contracts in
+  `packages/contracts/src/translation.ts`, logic in `apps/server/src/translation/translate.ts`, API keys as
+  secrets `translation-<id>-apiKey` (`settingsSecrets.ts`), UI `settings/TranslationSettings.tsx` mounted after
+  Global memory in `ProviderSettingsPanel.tsx`. Wiring follows the `memory.*` RPC lines in the same files.
 - Terminal font picker: already upstream (`TypographySettings.tsx`, `FontFamilyPicker.tsx`).
 
 ## Desktop dev

@@ -96,6 +96,7 @@ import {
   RpcClientId,
   EnvironmentAuthorizationError,
   ThreadId,
+  TranslationError,
   type TerminalMetadataStreamEvent,
   type PullRequestRef,
   WS_METHODS,
@@ -226,6 +227,7 @@ import { mutateProjectWithClone } from "./project/ProjectMutation.ts";
 import * as ProjectCloneTracker from "./project/ProjectCloneTracker.ts";
 import * as IssueService from "./issues/IssueService.ts";
 import * as MemoryService from "./memory/MemoryService.ts";
+import { translateText } from "./translation/translate.ts";
 import * as RepositoryIdentityResolver from "./project/RepositoryIdentityResolver.ts";
 import * as WorktreeSetupTracker from "./project/WorktreeSetupTracker.ts";
 import * as ServerEnvironment from "./environment/ServerEnvironment.ts";
@@ -2872,6 +2874,11 @@ export const layerWsRpc = (
         [WS_METHODS.issuesTestConnection]: (input) => issueService.testConnection(input.trackerId),
         [WS_METHODS.memoryGetStats]: () => memoryService.stats,
         [WS_METHODS.memoryClear]: () => memoryService.clear,
+        [WS_METHODS.translationTranslate]: (input) =>
+          serverSettings.getSettings.pipe(
+            Effect.mapError((cause) => new TranslationError({ detail: String(cause) })),
+            Effect.flatMap((settings) => translateText(settings.translation, input)),
+          ),
         [WS_METHODS.issuesCatalog]: (input) => issueService.catalog(input.trackerId),
         [WS_METHODS.issuesBoard]: () => issueService.board(),
         [WS_METHODS.issuesExecute]: (input) =>

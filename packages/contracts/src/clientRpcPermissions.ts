@@ -34,6 +34,8 @@ export const CLIENT_GUARDED_RPC_SCOPES = {
   [WS_METHODS.issuesPull]: AuthOrchestrationOperateScope,
   [WS_METHODS.issuesSetStatus]: AuthOrchestrationOperateScope,
   [WS_METHODS.memoryClear]: AuthSettingsWriteScope,
+  // Spends the stored translation API keys.
+  [WS_METHODS.translationTranslate]: AuthOrchestrationOperateScope,
   [WS_METHODS.serverCheckSecretSource]: AuthSettingsWriteScope,
   // Listing models spends the stored API key, so only those who can choose a model may.
   [WS_METHODS.serverListTextGeneratorModels]: AuthSettingsWriteScope,

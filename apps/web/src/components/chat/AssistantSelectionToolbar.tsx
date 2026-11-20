@@ -4,7 +4,7 @@ import {
   type AssistantCitation,
   type ScopedThreadRef,
 } from "@t3tools/contracts";
-import { QuoteIcon } from "lucide-react";
+import { LanguagesIcon, QuoteIcon } from "lucide-react";
 import { use, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -17,8 +17,10 @@ import {
   resolveSelectionActionPosition,
   type SelectionActionPoint,
 } from "~/lib/selectionActions";
+import { useStableCallback } from "~/hooks/useStableCallback";
 import { Button } from "../ui/button";
 import { BackgroundThreadContext } from "./backgroundThread";
+import { TranslationPopover } from "./TranslationPopover";
 
 export function AssistantSelectionToolbar({
   viewport,
@@ -34,7 +36,13 @@ export function AssistantSelectionToolbar({
     position: SelectionActionPoint;
     sourceAnchor: AssistantCitationSourceAnchor;
   } | null>(null);
-  const toolbarRef = useRef<HTMLButtonElement>(null);
+  // t4code: the toolbar is a group (Cite, Translate) and Translate opens a result panel.
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const [translation, setTranslation] = useState<{
+    text: string;
+    position: SelectionActionPoint;
+  } | null>(null);
+  const closeTranslation = useStableCallback(() => setTranslation(null));
   const actionsRef = useRef<ReturnType<typeof observeSelectionActions> | null>(null);
   const backgroundThread = use(BackgroundThreadContext);
 
@@ -160,10 +168,11 @@ export function AssistantSelectionToolbar({
       ) {
         return;
       }
-      if (toolbar.disabled) return;
+      const button = toolbar.querySelector<HTMLButtonElement>("button:not(:disabled)");
+      if (!button) return;
       event.preventDefault();
       event.stopPropagation();
-      toolbar.focus({ preventScroll: true });
+      button.focus({ preventScroll: true });
     };
     // Tab belongs to the foreground chat; a background timeline only follows its selection.
     if (!backgroundThread) document.addEventListener("keydown", focusActions, true);
@@ -176,7 +185,15 @@ export function AssistantSelectionToolbar({
     };
   }, [backgroundThread, threadRef, viewport]);
 
-  if (!selection) return null;
+  const translationPanel = translation ? (
+    <TranslationPopover
+      environmentId={threadRef.environmentId}
+      text={translation.text}
+      position={translation.position}
+      onClose={closeTranslation}
+    />
+  ) : null;
+  if (!selection) return translationPanel;
   const tooLong = selection.citation.text.length > ASSISTANT_CITATION_MAX_TEXT_LENGTH;
   const dismiss = () => {
     actionsRef.current?.cancel();
@@ -188,29 +205,52 @@ export function AssistantSelectionToolbar({
     dismiss();
     return true;
   };
-  return createPortal(
-    <Button
-      ref={toolbarRef}
-      type="button"
-      size="xs"
-      variant="glass"
-      disabled={tooLong}
-      aria-label={tooLong ? "Selection is too long to cite" : "Cite selection in composer"}
-      className="fixed z-50 max-w-[calc(100vw-1rem)]"
-      style={{ left: selection.position.x, top: selection.position.y }}
-      onPointerDown={(event) => event.preventDefault()}
-      onClick={cite}
-      onKeyDown={(event) => {
-        event.stopPropagation();
-        if (event.key === "Escape" && !event.nativeEvent.isComposing) {
-          event.preventDefault();
-          dismiss();
-        }
-      }}
-    >
-      <QuoteIcon aria-hidden="true" className="size-3.5" />
-      {tooLong ? "Shorten selection" : "Cite"}
-    </Button>,
-    document.body,
+  const translate = () => {
+    setTranslation({ text: selection.citation.text, position: selection.position });
+    dismiss();
+  };
+  return (
+    <>
+      {translationPanel}
+      {createPortal(
+        <div
+          ref={toolbarRef}
+          role="toolbar"
+          className="fixed z-50 flex max-w-[calc(100vw-1rem)] gap-1"
+          style={{ left: selection.position.x, top: selection.position.y }}
+          onPointerDown={(event) => event.preventDefault()}
+          onKeyDown={(event) => {
+            event.stopPropagation();
+            if (event.key === "Escape" && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              dismiss();
+            }
+          }}
+        >
+          <Button
+            type="button"
+            size="xs"
+            variant="glass"
+            disabled={tooLong}
+            aria-label={tooLong ? "Selection is too long to cite" : "Cite selection in composer"}
+            onClick={cite}
+          >
+            <QuoteIcon aria-hidden="true" className="size-3.5" />
+            {tooLong ? "Shorten selection" : "Cite"}
+          </Button>
+          <Button
+            type="button"
+            size="xs"
+            variant="glass"
+            aria-label="Translate selection"
+            onClick={translate}
+          >
+            <LanguagesIcon aria-hidden="true" className="size-3.5" />
+            Translate
+          </Button>
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }

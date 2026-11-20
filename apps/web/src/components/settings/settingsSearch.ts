@@ -1025,6 +1025,14 @@ export const SETTINGS_SEARCH_ITEMS = [
     providerSettingsOnly: true,
   },
   {
+    id: "translation",
+    title: "Translation",
+    to: "/settings/providers",
+    scope: "environment",
+    searchTerms: ["translate translation language google openai 翻译 selection"],
+    providerSettingsOnly: true,
+  },
+  {
     id: "provider-health-check-interval",
     title: "Health check interval",
     to: "/settings/providers",

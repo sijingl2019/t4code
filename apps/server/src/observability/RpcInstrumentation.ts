@@ -240,6 +240,7 @@ const RPC_AGGREGATES = {
   [WS_METHODS.issuesSetStatus]: "issues",
   [WS_METHODS.memoryGetStats]: "memory",
   [WS_METHODS.memoryClear]: "memory",
+  [WS_METHODS.translationTranslate]: "translation",
 } as const satisfies Readonly<Record<WsRpcMethod, string>>;
 
 const RPC_SPAN_PREFIX = "ws.rpc";

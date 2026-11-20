@@ -34,6 +34,7 @@ import {
 } from "./model.ts";
 import { ModelSelection } from "./modelSelection.ts";
 import { GlobalMemorySettings } from "./memory.ts";
+import { TranslationSettings, TranslationSettingsPatch } from "./translation.ts";
 import { ProjectScript, type ProjectMutation } from "./project.ts";
 import { DEFAULT_RUNTIME_MODE, RuntimeMode } from "./providerPolicy.ts";
 import { BrowserProfile, BrowserProfileId, DEFAULT_BROWSER_PROFILE_ID } from "./browserProfile.ts";
@@ -1517,6 +1518,9 @@ export const ServerSettings = Schema.Struct({
   globalMemory: GlobalMemorySettings.pipe(
     Schema.withDecodingDefault(Effect.succeed(Schema.decodeSync(GlobalMemorySettings)({}))),
   ),
+  translation: TranslationSettings.pipe(
+    Schema.withDecodingDefault(Effect.succeed(Schema.decodeSync(TranslationSettings)({}))),
+  ),
   cloudSpeechCredentials: CloudSpeechCredentials.pipe(
     Schema.withDecodingDefault(Effect.succeed({ openai: "", xai: "", openrouter: "" })),
   ),
@@ -1987,6 +1991,7 @@ export const ServerSettingsPatch = Schema.Struct({
       intervalMinutes: Schema.optionalKey(IssueAutoDevSettings.fields.intervalMinutes),
     }),
   ),
+  translation: Schema.optionalKey(TranslationSettingsPatch),
   globalMemory: Schema.optionalKey(
     Schema.Struct({
       enabled: Schema.optionalKey(Schema.Boolean),

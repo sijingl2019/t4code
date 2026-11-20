@@ -1850,6 +1850,10 @@ export function createServerEnvironmentAtoms<R, E>(
       label: "environment-data:memory:clear",
       tag: WS_METHODS.memoryClear,
     }),
+    translateText: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:translation:translate",
+      tag: WS_METHODS.translationTranslate,
+    }),
     checkSecretSource: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:server:check-secret-source",
       tag: WS_METHODS.serverCheckSecretSource,

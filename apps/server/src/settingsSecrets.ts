@@ -12,6 +12,7 @@ import {
   type SettingsSecretValue,
   SimlockDeviceHostConfig,
   TextGeneratorConfig,
+  TranslationService,
   UsageLimitSourceConfig,
   isSecretReference,
   secretSettingsFields,
@@ -53,6 +54,7 @@ const usageLimitSecretFields = secretSettingsFields(UsageLimitSourceConfig);
 const textGeneratorSecretFields = secretSettingsFields(TextGeneratorConfig);
 const voiceSecretFields = secretSettingsFields(CloudSpeechCredentials);
 const onesSecretFields = secretSettingsFields(OnesSettings);
+const translationSecretFields = secretSettingsFields(TranslationService);
 const easDeviceHostSecretFields = secretSettingsFields(EasDeviceHostConfig);
 const simlockDeviceHostSecretFields = secretSettingsFields(SimlockDeviceHostConfig);
 const encode = (value: string) => Buffer.from(value, "utf8").toString("base64url");
@@ -273,6 +275,17 @@ function mapSecretFieldGroups(
               : `issue-tracker-${encode(tracker.id)}-${field}`,
           ) as IssueTrackerConnection,
       ) ?? null,
+    translation: {
+      ...settings.translation,
+      services: settings.translation.services.map(
+        (service) =>
+          mapFields(
+            service,
+            translationSecretFields,
+            (field) => `translation-${encode(service.id)}-${field}`,
+          ) as TranslationService,
+      ),
+    },
     providerInstances,
     sourceControlHosts,
     usageLimitSources,

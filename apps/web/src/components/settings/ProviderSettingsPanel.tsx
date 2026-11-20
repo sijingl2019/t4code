@@ -98,6 +98,7 @@ import { ProviderInstanceCard } from "./ProviderInstanceCard";
 import { useSecretSources } from "./SecretSourceInput";
 import { TextGeneratorsSettings } from "./TextGeneratorsSettings";
 import { GlobalMemorySettings } from "./GlobalMemorySettings";
+import { TranslationSettings } from "./TranslationSettings";
 import { UsageProviderSettings } from "./UsageProviderSettings";
 import { ProviderSetupSection, readAntigravityAuthMethod } from "./ProviderSetupSection";
 import { ProviderAuthenticationSection } from "./ProviderAuthenticationSection";
@@ -1106,6 +1107,7 @@ export function EnvironmentProviderSettings({
       ) : null}
 
       <GlobalMemorySettings key={`global-memory:${environmentId}`} />
+      <TranslationSettings key={`translation:${environmentId}`} />
 
       <SettingsSection title="Advanced">
         <SettingsRow

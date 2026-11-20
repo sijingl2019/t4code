@@ -400,6 +400,7 @@ import {
   IssueSetStatusInput,
 } from "./issues.ts";
 import { MemoryEmptyInput, MemoryStats, MemoryStoreError } from "./memory.ts";
+import { TranslateInput, TranslateResult, TranslationError } from "./translation.ts";
 import {
   ProjectCloneActionInput,
   ProjectCloneActionResult,
@@ -633,6 +634,7 @@ export const WS_METHODS = {
   issuesSetStatus: "issues.setStatus",
   memoryGetStats: "memory.getStats",
   memoryClear: "memory.clear",
+  translationTranslate: "translation.translate",
   projectCloneStart: "projectClone.start",
   projectCloneCancel: "projectClone.cancel",
   projectCloneRetry: "projectClone.retry",
@@ -1395,6 +1397,12 @@ const WsMemoryGetStatsRpc = Rpc.make(WS_METHODS.memoryGetStats, {
   payload: MemoryEmptyInput,
   success: MemoryStats,
   error: Schema.Union([MemoryStoreError, EnvironmentAuthorizationError]),
+});
+
+const WsTranslationTranslateRpc = Rpc.make(WS_METHODS.translationTranslate, {
+  payload: TranslateInput,
+  success: TranslateResult,
+  error: Schema.Union([TranslationError, EnvironmentAuthorizationError]),
 });
 
 const WsMemoryClearRpc = Rpc.make(WS_METHODS.memoryClear, {
@@ -2303,6 +2311,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsIssuesSetStatusRpc,
   WsMemoryGetStatsRpc,
   WsMemoryClearRpc,
+  WsTranslationTranslateRpc,
   WsProjectCloneStartRpc,
   WsProjectCloneCancelRpc,
   WsProjectCloneRetryRpc,

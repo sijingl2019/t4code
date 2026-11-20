@@ -1951,6 +1951,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
         // t4code: issue tracker credentials; only t4code clients read these.
         "ones.password",
         "issueTrackers.[].password",
+        "translation.services.[].apiKey",
         "cloudSpeechCredentials.openai",
         "cloudSpeechCredentials.xai",
         "cloudSpeechCredentials.openrouter",
