@@ -175,6 +175,7 @@ export function useVscodeLaunchScripts(
     cwd ?? "",
     VSCODE_LAUNCH_FILE,
     cwd !== null,
+    undefined,
     workspaceMutationId,
   );
   const settings = useProjectFileQuery(
@@ -182,6 +183,7 @@ export function useVscodeLaunchScripts(
     cwd ?? "",
     VSCODE_SETTINGS_FILE,
     cwd !== null,
+    undefined,
     workspaceMutationId,
   );
   const refreshOnReturn = useEffectEvent(() => {

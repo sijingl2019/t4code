@@ -1,3 +1,4 @@
+/* oxlint-disable t3code/no-untranslated-copy -- t4code-only UI is not translated yet; keep the merge scoped. */
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
 import {
   threadRuntimeIsActive,
@@ -81,9 +82,9 @@ export function IssueBoardPage() {
 
 /** Every issue assigned to the user, with status edits and one-click runs in linked projects. */
 function IssueBoardTable({ environmentId }: { environmentId: EnvironmentId }) {
-  const loadBoard = useAtomCommand(serverEnvironment.getIssueBoard);
-  const setIssueStatus = useAtomCommand(serverEnvironment.setIssueStatus);
-  const executeIssue = useAtomCommand(serverEnvironment.executeIssue);
+  const loadBoard = useAtomCommand(serverEnvironment.onesGetIssueBoard);
+  const setIssueStatus = useAtomCommand(serverEnvironment.onesSetIssueStatus);
+  const executeIssue = useAtomCommand(serverEnvironment.onesExecuteIssue);
   const threads = useQuietThreadShells();
   const [board, setBoard] = useState<IssueBoard | null>(null);
   const [error, setError] = useState<string | null>(null);

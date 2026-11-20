@@ -202,7 +202,7 @@ describe("project query refresh", () => {
     const registry = AtomRegistry.make();
     atomHooks.registry = registry;
     const read = (mutationId: string | null) =>
-      useProjectFileQuery(environmentId, "/repo", "src/preview.ts", true, mutationId);
+      useProjectFileQuery(environmentId, "/repo", "src/preview.ts", true, undefined, mutationId);
 
     try {
       read("mutation-1");

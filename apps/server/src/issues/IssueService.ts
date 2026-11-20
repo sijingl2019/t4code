@@ -23,7 +23,7 @@ import {
   type IssueFile,
   type IssueGetResult,
   type IssueTrackerCatalog,
-  type IssueTrackerConnection,
+  type OnesIssueTrackerConnection,
   type IssueTestConnectionResult,
   type IssueTrackerStatus,
   type OrchestrationV2DomainEvent,
@@ -211,7 +211,7 @@ export const layer = Layer.effect(
     };
 
     const clientFor = Effect.fn("IssueService.clientFor")(function* (
-      tracker: IssueTrackerConnection,
+      tracker: OnesIssueTrackerConnection,
     ) {
       const adapter = issueTrackerAdapter(tracker.kind);
       if (!adapter) {
@@ -228,7 +228,7 @@ export const layer = Layer.effect(
     });
 
     const listAll = Effect.fn("IssueService.listAll")(function* (
-      tracker: IssueTrackerConnection,
+      tracker: OnesIssueTrackerConnection,
       fresh = false,
     ) {
       const client = yield* clientFor(tracker);

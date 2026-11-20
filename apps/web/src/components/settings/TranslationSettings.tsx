@@ -1,3 +1,4 @@
+/* oxlint-disable t3code/no-untranslated-copy -- t4code-only UI is not translated yet; keep the merge scoped. */
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
 import { useAtomValue } from "@effect/atom-react";
 import {
@@ -35,7 +36,7 @@ import { Textarea } from "../ui/textarea";
 import { useSettingsScope } from "./SettingsScopeContext";
 import { SettingsScopeNotice } from "./SettingsScopeNotice";
 import { SettingsRow, SettingsSection } from "./settingsLayout";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import { useScopedSettings } from "./useScopedSettings";
 
 const SECTION_TITLE = "Translation";
@@ -73,6 +74,7 @@ export function TranslationSettings() {
 }
 
 function TranslationSettingsForm({ environmentId }: { environmentId: EnvironmentId }) {
+  const searchableSetting = useSearchableSetting();
   const settings = useScopedSettings((value) => value.translation);
   const canEdit = useAtomValue(serverEnvironment.updateSettings.permissionAtom(environmentId));
   const updateSettings = useAtomCommand(serverEnvironment.updateSettings, { reportFailure: true });

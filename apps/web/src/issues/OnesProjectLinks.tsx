@@ -1,4 +1,5 @@
-import type { EnvironmentId, IssueTrackerConnection } from "@t3tools/contracts";
+/* oxlint-disable t3code/no-untranslated-copy -- t4code-only UI is not translated yet; keep the merge scoped. */
+import type { EnvironmentId, OnesIssueTrackerConnection } from "@t3tools/contracts";
 import { ChevronDownIcon } from "lucide-react";
 import { useState } from "react";
 
@@ -76,7 +77,7 @@ export function useIssueProjectLinks(environmentId: EnvironmentId, workspaceRoot
 /** One labelled project picker per linkable tracker. */
 export function IssueProjectLinksFields(props: {
   environmentId: EnvironmentId;
-  trackers: ReadonlyArray<IssueTrackerConnection>;
+  trackers: ReadonlyArray<OnesIssueTrackerConnection>;
   value: (trackerId: string) => ReadonlyArray<string>;
   onChange: (trackerId: string, ids: ReadonlyArray<string>) => void;
   disabled?: boolean;

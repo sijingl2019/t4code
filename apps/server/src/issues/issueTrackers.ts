@@ -5,18 +5,18 @@
 import {
   settingsSecretLiteral,
   type IssueStatusFilter,
-  type IssueTrackerConnection,
-  type IssueTrackerKind,
+  type OnesIssueTrackerConnection,
+  type OnesIssueTrackerKind,
 } from "@t3tools/contracts";
 
 import type { IssueTrackerClient } from "./IssueTrackerClient.ts";
 import { OnesClient } from "./OnesClient.ts";
 
 interface IssueTrackerAdapter {
-  readonly create: (connection: IssueTrackerConnection) => IssueTrackerClient;
+  readonly create: (connection: OnesIssueTrackerConnection) => IssueTrackerClient;
 }
 
-const onesConnection = (connection: IssueTrackerConnection) => ({
+const onesConnection = (connection: OnesIssueTrackerConnection) => ({
   baseUrl: connection.baseUrl,
   teamUuid: connection.teamUuid,
   email: connection.email,
@@ -25,19 +25,19 @@ const onesConnection = (connection: IssueTrackerConnection) => ({
 });
 
 // ponytail: Jira is selectable in settings but has no adapter yet; add a JiraClient here.
-const adapters: Partial<Record<IssueTrackerKind, IssueTrackerAdapter>> = {
+const adapters: Partial<Record<OnesIssueTrackerKind, IssueTrackerAdapter>> = {
   ones: { create: (connection) => new OnesClient(onesConnection(connection)) },
 };
 
-export const issueTrackerAdapter = (kind: IssueTrackerKind): IssueTrackerAdapter | undefined =>
+export const issueTrackerAdapter = (kind: OnesIssueTrackerKind): IssueTrackerAdapter | undefined =>
   adapters[kind];
 
 /** Identifies the connection; a changed key means a new client (and a fresh login). */
-export const connectionKey = (connection: IssueTrackerConnection) =>
+export const connectionKey = (connection: OnesIssueTrackerConnection) =>
   `${connection.kind}:${JSON.stringify(onesConnection(connection))}`;
 
 /** An include/exclude list with nothing picked means "not set". */
 export const effectiveStatusFilter = ({
   statusFilter,
-}: IssueTrackerConnection): IssueStatusFilter =>
+}: OnesIssueTrackerConnection): IssueStatusFilter =>
   statusFilter.statusIds.length > 0 ? statusFilter : { mode: "default", statusIds: [] };

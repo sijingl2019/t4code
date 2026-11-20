@@ -1,3 +1,4 @@
+/* oxlint-disable t3code/no-untranslated-copy -- t4code-only UI is not translated yet; keep the merge scoped. */
 import {
   type AtomCommandResult,
   squashAtomCommandFailure,
@@ -6,8 +7,8 @@ import {
   issueTrackersOf,
   type EnvironmentId,
   type IssueTrackerCatalog,
-  type IssueTrackerConnection,
-  type IssueTrackerKind,
+  type OnesIssueTrackerConnection,
+  type OnesIssueTrackerKind,
   type ServerSettings,
 } from "@t3tools/contracts";
 import { useEffect, useState } from "react";
@@ -15,21 +16,21 @@ import { useEffect, useState } from "react";
 import { serverEnvironment } from "../state/server";
 import { useAtomCommand } from "../state/use-atom-command";
 
-export const ISSUE_TRACKER_KIND_LABELS: Record<IssueTrackerKind, string> = {
+export const ISSUE_TRACKER_KIND_LABELS: Record<OnesIssueTrackerKind, string> = {
   ones: "ONES",
   jira: "Jira",
 };
 
 /** Kinds the server can fetch issues from; Jira is selectable but not wired up yet. */
-export const supportedIssueTrackerKind = (kind: IssueTrackerKind) => kind === "ones";
+export const supportedIssueTrackerKind = (kind: OnesIssueTrackerKind) => kind === "ones";
 
-export const issueTrackerLabel = (tracker: IssueTrackerConnection) =>
+export const issueTrackerLabel = (tracker: OnesIssueTrackerConnection) =>
   tracker.name || ISSUE_TRACKER_KIND_LABELS[tracker.kind];
 
 /** Trackers whose projects can be linked: supported and with a saved connection. */
 export const linkableIssueTrackers = (
   settings: ServerSettings | undefined,
-): ReadonlyArray<IssueTrackerConnection> =>
+): ReadonlyArray<OnesIssueTrackerConnection> =>
   settings
     ? issueTrackersOf(settings).filter(
         (t) => supportedIssueTrackerKind(t.kind) && t.baseUrl !== "" && t.email !== "",
@@ -51,7 +52,7 @@ export function useIssueTrackerCatalog(
   environmentId: EnvironmentId | null,
   trackerId: string | null,
 ) {
-  const loadCatalog = useAtomCommand(serverEnvironment.getIssueTrackerCatalog);
+  const loadCatalog = useAtomCommand(serverEnvironment.onesGetIssueTrackerCatalog);
   const [loaded, setLoaded] = useState<Loaded>({ catalog: null, error: null });
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- fetches the project list from the tracker

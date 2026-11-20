@@ -12,12 +12,12 @@ export const IssueAttachmentRef = Schema.Struct({
 });
 export type IssueAttachmentRef = typeof IssueAttachmentRef.Type;
 
-export const IssueComment = Schema.Struct({
+export const OnesIssueComment = Schema.Struct({
   author: Schema.String,
   createdAt: Schema.String,
   text: Schema.String,
 });
-export type IssueComment = typeof IssueComment.Type;
+export type OnesIssueComment = typeof OnesIssueComment.Type;
 
 export const Issue = Schema.Struct({
   uuid: Schema.String,
@@ -36,13 +36,13 @@ export const Issue = Schema.Struct({
   /** Id of the configured tracker connection (`issueTrackers[].id`) the issue came from. */
   trackerId: Schema.String,
   updatedAt: Schema.String,
-  comments: Schema.Array(IssueComment),
+  comments: Schema.Array(OnesIssueComment),
   attachments: Schema.Array(IssueAttachmentRef),
 });
 export type Issue = typeof Issue.Type;
 
-export const IssueListInput = Schema.Struct({ projectId: ProjectId });
-export type IssueListInput = typeof IssueListInput.Type;
+export const OnesIssueListInput = Schema.Struct({ projectId: ProjectId });
+export type OnesIssueListInput = typeof OnesIssueListInput.Type;
 
 export const IssueGetInput = Schema.Struct({
   issueUuid: TrimmedNonEmptyString,

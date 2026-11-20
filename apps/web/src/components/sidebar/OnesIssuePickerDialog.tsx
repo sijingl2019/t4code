@@ -1,3 +1,4 @@
+/* oxlint-disable t3code/no-untranslated-copy -- t4code-only UI is not translated yet; keep the merge scoped. */
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
 import type { EnvironmentId, Issue, ProjectId } from "@t3tools/contracts";
@@ -22,8 +23,8 @@ export function OnesIssuePickerDialog(props: {
   projectName: string;
 }) {
   const { open, onOpenChange, environmentId, projectId } = props;
-  const listIssues = useAtomCommand(serverEnvironment.listIssues);
-  const executeIssue = useAtomCommand(serverEnvironment.executeIssue, { reportFailure: true });
+  const listIssues = useAtomCommand(serverEnvironment.onesListIssues);
+  const executeIssue = useAtomCommand(serverEnvironment.onesExecuteIssue, { reportFailure: true });
   const navigate = useNavigate();
   const [issues, setIssues] = useState<readonly Issue[] | null>(null);
   const [error, setError] = useState<string | null>(null);

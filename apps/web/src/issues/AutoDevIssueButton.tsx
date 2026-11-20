@@ -1,3 +1,4 @@
+/* oxlint-disable t3code/no-untranslated-copy -- t4code-only UI is not translated yet; keep the merge scoped. */
 import { TicketIcon } from "lucide-react";
 import { ThreadDetailsControl } from "../components/chat/ThreadDetailsControl";
 import {

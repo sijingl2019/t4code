@@ -1,3 +1,4 @@
+/* oxlint-disable t3code/no-untranslated-copy -- t4code-only UI is not translated yet; keep the merge scoped. */
 import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { planProjectRemoval } from "@t3tools/client-runtime/state/projects";
 import { mapAtomCommandResult, settlePromise } from "@t3tools/client-runtime/state/runtime";
@@ -135,7 +136,7 @@ function ProjectFolderMenuItems({
   const canReveal = isLocal && config?.availableEditors.includes("file-manager") === true;
   const canOpenVsCode = isLocal && config?.availableEditors.includes("vscode") === true;
   const hasIssueBinding = useHasIssueBinding(group.environmentId, group.workspaceRoot);
-  const pullIssues = useAtomCommand(serverEnvironment.pullIssues, { reportFailure: true });
+  const pullIssues = useAtomCommand(serverEnvironment.onesPullIssues, { reportFailure: true });
   const pull = async () => {
     const result = await pullIssues({
       environmentId: group.environmentId,

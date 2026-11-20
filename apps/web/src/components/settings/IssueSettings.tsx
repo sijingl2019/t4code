@@ -1,13 +1,14 @@
+/* oxlint-disable t3code/no-untranslated-copy -- t4code-only UI is not translated yet; keep the merge scoped. */
 import { useAtomValue } from "@effect/atom-react";
 import {
   issueTrackersOf,
-  IssueTrackerKind,
+  OnesIssueTrackerKind,
   MAX_ISSUE_AUTO_DEV_INTERVAL_MINUTES,
   MIN_ISSUE_AUTO_DEV_INTERVAL_MINUTES,
   type EnvironmentId,
   type IssueProjectBinding,
   type IssueStatusFilter,
-  type IssueTrackerConnection,
+  type OnesIssueTrackerConnection,
   type IssueTrackerStatus,
   type ServerSettingsPatch,
 } from "@t3tools/contracts";
@@ -37,7 +38,7 @@ import { SettingsSection } from "./settingsLayout";
 import { useScopedSettings } from "./useScopedSettings";
 
 const SECTION_TITLE = "Trackers";
-const TRACKER_KINDS = IssueTrackerKind.literals;
+const TRACKER_KINDS = OnesIssueTrackerKind.literals;
 
 export function IssueSettings() {
   const { environment, scope } = useSettingsScope();
@@ -120,7 +121,7 @@ function IssueSettingsForm({ environmentId }: { environmentId: EnvironmentId }) 
 }
 
 type Draft = {
-  kind: IssueTrackerKind;
+  kind: OnesIssueTrackerKind;
   name: string;
   baseUrl: string;
   teamUuid: string;
@@ -130,9 +131,9 @@ type Draft = {
 
 function TrackerCard(props: {
   environmentId: EnvironmentId;
-  trackers: ReadonlyArray<IssueTrackerConnection>;
+  trackers: ReadonlyArray<OnesIssueTrackerConnection>;
   /** `null` for a tracker added in this session and not saved yet. */
-  tracker: IssueTrackerConnection | null;
+  tracker: OnesIssueTrackerConnection | null;
   newId?: string;
   canEdit: boolean;
   onDiscard?: () => void;
@@ -142,7 +143,7 @@ function TrackerCard(props: {
   const save = useSaveSettings(environmentId);
   const bindings = useScopedSettings((settings) => settings.issueProjectBindings);
   const autoDev = useScopedSettings((settings) => settings.issueAutoDev);
-  const testConnection = useAtomCommand(serverEnvironment.testIssueConnection);
+  const testConnection = useAtomCommand(serverEnvironment.onesTestIssueConnection);
   const supported = tracker !== null && supportedIssueTrackerKind(tracker.kind);
   const configured = supported && tracker.baseUrl !== "" && tracker.email !== "";
   const catalog = useIssueTrackerCatalog(environmentId, configured ? id : null);
@@ -168,7 +169,10 @@ function TrackerCard(props: {
   const isOnes = draft.kind === "ones";
 
   /** Writes the full tracker list with this one replaced (or appended). */
-  const writeTracker = (next: IssueTrackerConnection | null, extra: ServerSettingsPatch = {}) => {
+  const writeTracker = (
+    next: OnesIssueTrackerConnection | null,
+    extra: ServerSettingsPatch = {},
+  ) => {
     const issueTrackers =
       next === null
         ? trackers.filter((t) => t.id !== id)
@@ -252,7 +256,7 @@ function TrackerCard(props: {
           >
             <SelectTrigger size="sm" aria-label="Tracker type">
               <SelectValue>
-                {(kind: IssueTrackerKind) => ISSUE_TRACKER_KIND_LABELS[kind]}
+                {(kind: OnesIssueTrackerKind) => ISSUE_TRACKER_KIND_LABELS[kind]}
               </SelectValue>
             </SelectTrigger>
             <SelectPopup>
@@ -372,7 +376,7 @@ function TrackerCard(props: {
 
 function ProjectBindingsField(props: {
   environmentId: EnvironmentId;
-  tracker: IssueTrackerConnection;
+  tracker: OnesIssueTrackerConnection;
   catalog: ReturnType<typeof useIssueTrackerCatalog>;
   disabled: boolean;
   onDoneStatusChange: (trackerProjectId: string, statusId: string) => void;

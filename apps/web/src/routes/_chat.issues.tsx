@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { IssueBoardPage } from "../issues/IssueBoardPage";
+import { IssuesPage } from "../components/issue/IssuesPage";
+import { issuesSearchFromUrl } from "../components/issue/issuesSearch.logic";
 
 export const Route = createFileRoute("/_chat/issues")({
-  component: IssueBoardPage,
+  validateSearch: issuesSearchFromUrl,
+  component: IssuesPage,
 });

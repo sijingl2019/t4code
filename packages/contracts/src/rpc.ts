@@ -170,6 +170,32 @@ import {
 } from "./provider.ts";
 import { ProviderInstanceId, ProviderInstanceMutation } from "./providerInstance.ts";
 import {
+  IssueCandidates,
+  IssueCommentInput,
+  IssueCommentsPage,
+  IssueCommentsPageInput,
+  IssueCreateInput,
+  IssueCreateResult,
+  IssueDetail,
+  IssueLinkedThreadsResult,
+  IssueListInput,
+  IssueListResult,
+  IssueOperationError,
+  IssueReactionInput,
+  IssueRef,
+  IssueScopeRef,
+  IssueSetStateInput,
+  IssueTemplateList,
+  IssueTrackerBindProjectInput,
+  IssueTrackerConnectInput,
+  IssueTrackerConnection,
+  IssueTrackerConnectionError,
+  IssueTrackerConnectionList,
+  IssueUnavailableError,
+  IssueUpdateInput,
+  ThreadIssueKey,
+} from "./issue.ts";
+import {
   GuestShareCreateError,
   GuestShareCreateInput,
   GuestShareCreateResult,
@@ -363,7 +389,7 @@ import {
   DatabaseStorageStatus,
   ServerSettings,
   ServerSettingsError,
-  ServerSettingsPatch,
+  ClientServerSettingsPatch,
   ListTextGeneratorModelsInput,
   ListTextGeneratorModelsResult,
   TextGeneratorError,
@@ -389,7 +415,7 @@ import { SecretRequestAnswerInput, SecretRequestError } from "./secretRequest.ts
 import {
   IssueGetInput,
   IssueGetResult,
-  IssueListInput,
+  OnesIssueListInput,
   Issue,
   IssueTrackerCatalog,
   IssueTestConnectionResult,
@@ -538,6 +564,7 @@ export const WS_METHODS = {
   peerLinksLink: "peerLinks.link",
   peerLinksUnlink: "peerLinks.unlink",
   peerLinksAnswerRequest: "peerLinks.answerRequest",
+  serverGetSettings: "server.getSettings",
   serverUpdateSettings: "server.updateSettings",
   serverDiscoverSourceControl: "server.discoverSourceControl",
   serverCheckSecretSource: "server.checkSecretSource",
@@ -610,10 +637,27 @@ export const WS_METHODS = {
   pullRequestsInvalidate: "pullRequests.invalidate",
   pullRequestsReportState: "pullRequests.reportState",
   pullRequestsSubscribeRefreshes: "pullRequests.subscribeRefreshes",
+  pullRequestsSubscribeLinkedThreadRefreshes: "pullRequests.subscribeLinkedThreadRefreshes",
   pullRequestsReviewerCandidates: "pullRequests.reviewerCandidates",
   pullRequestsRequestReviewers: "pullRequests.requestReviewers",
   pullRequestsLabelCandidates: "pullRequests.labelCandidates",
   pullRequestsSetLabels: "pullRequests.setLabels",
+
+  // Issue tracking methods
+  issuesList: "issues.list",
+  issuesDetail: "issues.detail",
+  issuesComments: "issues.comments",
+  issuesTemplates: "issues.templates",
+  issuesCandidates: "issues.candidates",
+  issuesCreate: "issues.create",
+  issuesComment: "issues.comment",
+  issuesUpdate: "issues.update",
+  issuesSetState: "issues.setState",
+  issuesReact: "issues.react",
+  issuesLinkedThreads: "issues.linkedThreads",
+  issueTrackersList: "issueTrackers.list",
+  issueTrackersConnect: "issueTrackers.connect",
+  issueTrackersBindProject: "issueTrackers.bindProject",
 
   sourceControlLookupRepository: "sourceControl.lookupRepository",
   sourceControlCloneRepository: "sourceControl.cloneRepository",
@@ -624,14 +668,14 @@ export const WS_METHODS = {
   sourceControlAppAccess: "sourceControl.appAccess",
   sourceControlStarred: "sourceControl.starred",
   sourceControlStar: "sourceControl.star",
-  issuesList: "issues.list",
-  issuesGet: "issues.get",
-  issuesTestConnection: "issues.testConnection",
-  issuesCatalog: "issues.catalog",
-  issuesBoard: "issues.board",
-  issuesExecute: "issues.execute",
-  issuesPull: "issues.pull",
-  issuesSetStatus: "issues.setStatus",
+  onesIssuesList: "onesIssues.list",
+  onesIssuesGet: "onesIssues.get",
+  onesIssuesTestConnection: "onesIssues.testConnection",
+  onesIssuesCatalog: "onesIssues.catalog",
+  onesIssuesBoard: "onesIssues.board",
+  onesIssuesExecute: "onesIssues.execute",
+  onesIssuesPull: "onesIssues.pull",
+  onesIssuesSetStatus: "onesIssues.setStatus",
   memoryGetStats: "memory.getStats",
   memoryClear: "memory.clear",
   translationTranslate: "translation.translate",
@@ -889,9 +933,16 @@ const WsPeerLinksAnswerRequestRpc = Rpc.make(WS_METHODS.peerLinksAnswerRequest, 
   error: Schema.Union([PeerLinkRequestError, EnvironmentAuthorizationError]),
 });
 
+// No in-tree caller; installed Swift TestFlight builds still request it.
+const WsServerGetSettingsRpc = Rpc.make(WS_METHODS.serverGetSettings, {
+  payload: Schema.Struct({}),
+  success: ServerSettings,
+  error: Schema.Union([ServerSettingsError, EnvironmentAuthorizationError]),
+});
+
 const WsServerUpdateSettingsRpc = Rpc.make(WS_METHODS.serverUpdateSettings, {
   payload: Schema.Struct({
-    patch: ServerSettingsPatch,
+    patch: ClientServerSettingsPatch,
     providerInstanceMutation: Schema.optionalKey(ProviderInstanceMutation),
   }),
   success: ServerSettings,
@@ -1264,6 +1315,17 @@ const WsPullRequestsSubscribeRefreshesRpc = Rpc.make(WS_METHODS.pullRequestsSubs
   stream: true,
 });
 
+// Separate from the refreshes above so linked-thread changes don't refetch forge-backed reads.
+const WsPullRequestsSubscribeLinkedThreadRefreshesRpc = Rpc.make(
+  WS_METHODS.pullRequestsSubscribeLinkedThreadRefreshes,
+  {
+    payload: Schema.Struct({}),
+    success: NonNegativeInt,
+    error: EnvironmentAuthorizationError,
+    stream: true,
+  },
+);
+
 // Fetch reviewer candidates only when the menu opens to avoid unused host requests.
 const WsPullRequestsReviewerCandidatesRpc = Rpc.make(WS_METHODS.pullRequestsReviewerCandidates, {
   payload: PullRequestReviewerCandidatesInput,
@@ -1287,6 +1349,108 @@ const WsPullRequestsSetLabelsRpc = Rpc.make(WS_METHODS.pullRequestsSetLabels, {
   payload: PullRequestLabelChangeInput,
   success: Schema.Void,
   error: PullRequestRpcError,
+});
+
+const IssueRpcError = Schema.Union([
+  IssueUnavailableError,
+  IssueOperationError,
+  EnvironmentAuthorizationError,
+]);
+
+const WsIssuesListRpc = Rpc.make(WS_METHODS.issuesList, {
+  payload: IssueListInput,
+  success: IssueListResult,
+  error: IssueRpcError,
+});
+
+const WsIssuesDetailRpc = Rpc.make(WS_METHODS.issuesDetail, {
+  payload: IssueRef,
+  success: IssueDetail,
+  error: IssueRpcError,
+});
+
+/** Older comments, one page at a time, past the cursor the detail handed over. */
+const WsIssuesLinkedThreadsRpc = Rpc.make(WS_METHODS.issuesLinkedThreads, {
+  payload: ThreadIssueKey,
+  success: IssueLinkedThreadsResult,
+  error: IssueRpcError,
+});
+
+const WsIssuesCommentsRpc = Rpc.make(WS_METHODS.issuesComments, {
+  payload: IssueCommentsPageInput,
+  success: IssueCommentsPage,
+  error: IssueRpcError,
+});
+
+const WsIssuesTemplatesRpc = Rpc.make(WS_METHODS.issuesTemplates, {
+  payload: IssueScopeRef,
+  success: IssueTemplateList,
+  error: IssueRpcError,
+});
+
+/** Read when a label or assignee picker opens, not with every issue. */
+const WsIssuesCandidatesRpc = Rpc.make(WS_METHODS.issuesCandidates, {
+  payload: IssueScopeRef,
+  success: IssueCandidates,
+  error: IssueRpcError,
+});
+
+const WsIssuesCreateRpc = Rpc.make(WS_METHODS.issuesCreate, {
+  payload: IssueCreateInput,
+  success: IssueCreateResult,
+  error: IssueRpcError,
+});
+
+const WsIssuesCommentRpc = Rpc.make(WS_METHODS.issuesComment, {
+  payload: IssueCommentInput,
+  success: Schema.Void,
+  error: IssueRpcError,
+});
+
+const WsIssuesUpdateRpc = Rpc.make(WS_METHODS.issuesUpdate, {
+  payload: IssueUpdateInput,
+  success: Schema.Void,
+  error: IssueRpcError,
+});
+
+const WsIssuesSetStateRpc = Rpc.make(WS_METHODS.issuesSetState, {
+  payload: IssueSetStateInput,
+  success: Schema.Void,
+  error: IssueRpcError,
+});
+
+const WsIssuesReactRpc = Rpc.make(WS_METHODS.issuesReact, {
+  payload: IssueReactionInput,
+  success: Schema.Void,
+  error: IssueRpcError,
+});
+
+const IssueTrackerRpcError = Schema.Union([
+  IssueTrackerConnectionError,
+  EnvironmentAuthorizationError,
+]);
+
+/** Every standalone tracker this server ships, each with its connection probed afresh. */
+const WsIssueTrackersListRpc = Rpc.make(WS_METHODS.issueTrackersList, {
+  payload: Schema.Struct({}),
+  success: IssueTrackerConnectionList,
+  error: IssueTrackerRpcError,
+});
+
+/**
+ * Verifies the credential against the tracker before storing it; the result is the new status.
+ * A null token disconnects, which also unbinds every project that pointed at the tracker.
+ */
+const WsIssueTrackersConnectRpc = Rpc.make(WS_METHODS.issueTrackersConnect, {
+  payload: IssueTrackerConnectInput,
+  success: IssueTrackerConnection,
+  error: IssueTrackerRpcError,
+});
+
+const WsIssueTrackersBindProjectRpc = Rpc.make(WS_METHODS.issueTrackersBindProject, {
+  payload: IssueTrackerBindProjectInput,
+  success: Schema.Void,
+  error: IssueTrackerRpcError,
 });
 
 const WsSourceControlLookupRepositoryRpc = Rpc.make(WS_METHODS.sourceControlLookupRepository, {
@@ -1342,57 +1506,56 @@ const WsSourceControlStarRpc = Rpc.make(WS_METHODS.sourceControlStar, {
   error: EnvironmentAuthorizationError,
 });
 
-const WsIssuesListRpc = Rpc.make(WS_METHODS.issuesList, {
-  payload: IssueListInput,
+const WsOnesIssuesListRpc = Rpc.make(WS_METHODS.onesIssuesList, {
+  payload: OnesIssueListInput,
   success: Schema.Array(Issue),
   error: Schema.Union([IssueTrackerError, EnvironmentAuthorizationError]),
 });
 
-const WsIssuesGetRpc = Rpc.make(WS_METHODS.issuesGet, {
+const WsOnesIssuesGetRpc = Rpc.make(WS_METHODS.onesIssuesGet, {
   payload: IssueGetInput,
   success: IssueGetResult,
   error: Schema.Union([IssueTrackerError, EnvironmentAuthorizationError]),
 });
 
-const WsIssuesTestConnectionRpc = Rpc.make(WS_METHODS.issuesTestConnection, {
+const WsOnesIssuesTestConnectionRpc = Rpc.make(WS_METHODS.onesIssuesTestConnection, {
   payload: IssueTrackerInput,
   success: IssueTestConnectionResult,
   error: EnvironmentAuthorizationError,
 });
 
-const WsIssuesCatalogRpc = Rpc.make(WS_METHODS.issuesCatalog, {
+const WsOnesIssuesCatalogRpc = Rpc.make(WS_METHODS.onesIssuesCatalog, {
   payload: IssueTrackerInput,
   success: IssueTrackerCatalog,
   error: Schema.Union([IssueTrackerError, EnvironmentAuthorizationError]),
 });
 
-const WsIssuesBoardRpc = Rpc.make(WS_METHODS.issuesBoard, {
+const WsOnesIssuesBoardRpc = Rpc.make(WS_METHODS.onesIssuesBoard, {
   payload: Schema.Struct({}),
   success: IssueBoard,
   error: Schema.Union([IssueTrackerError, EnvironmentAuthorizationError]),
 });
 
 // Starts (or returns the existing) thread for the issue in the project, without opening it.
-const WsIssuesExecuteRpc = Rpc.make(WS_METHODS.issuesExecute, {
+const WsOnesIssuesExecuteRpc = Rpc.make(WS_METHODS.onesIssuesExecute, {
   payload: IssueExecuteInput,
   success: ThreadId,
   error: Schema.Union([IssueTrackerError, EnvironmentAuthorizationError]),
 });
 
 // Runs the auto-dev poll for one project now; succeeds with the number of threads started.
-const WsIssuesPullRpc = Rpc.make(WS_METHODS.issuesPull, {
-  payload: IssueListInput,
+const WsOnesIssuesPullRpc = Rpc.make(WS_METHODS.onesIssuesPull, {
+  payload: OnesIssueListInput,
   success: Schema.Number,
   error: Schema.Union([IssueTrackerError, EnvironmentAuthorizationError]),
 });
 
 // False when the issue's workflow has no transition to that status.
-const WsIssuesSetStatusRpc = Rpc.make(WS_METHODS.issuesSetStatus, {
+const WsOnesIssuesSetStatusRpc = Rpc.make(WS_METHODS.onesIssuesSetStatus, {
   payload: IssueSetStatusInput,
   success: Schema.Boolean,
   error: Schema.Union([IssueTrackerError, EnvironmentAuthorizationError]),
 });
-
 const WsMemoryGetStatsRpc = Rpc.make(WS_METHODS.memoryGetStats, {
   payload: MemoryEmptyInput,
   success: MemoryStats,
@@ -2186,6 +2349,20 @@ export class RpcScopeAuthorization extends RpcMiddleware.Service<RpcScopeAuthori
 ) {}
 
 export const WsRpcGroup = RpcGroup.make(
+  WsIssuesListRpc,
+  WsIssuesDetailRpc,
+  WsIssuesCommentsRpc,
+  WsIssuesTemplatesRpc,
+  WsIssuesCandidatesRpc,
+  WsIssuesLinkedThreadsRpc,
+  WsIssuesCreateRpc,
+  WsIssuesCommentRpc,
+  WsIssuesUpdateRpc,
+  WsIssuesSetStateRpc,
+  WsIssuesReactRpc,
+  WsIssueTrackersListRpc,
+  WsIssueTrackersConnectRpc,
+  WsIssueTrackersBindProjectRpc,
   WsGuestShareCreateRpc,
   WsServerProbeRpc,
   WsServerGetConfigRpc,
@@ -2215,6 +2392,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsServerRunStorageCleanupRpc,
   WsServerGetStorageCleanupReportRpc,
   WsServerGetDatabaseStorageRpc,
+  WsServerGetSettingsRpc,
   WsServerReclaimDatabaseSpaceRpc,
   WsServerUpdateSettingsRpc,
   WsPeerLinksListRpc,
@@ -2288,6 +2466,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsPullRequestsInvalidateRpc,
   WsPullRequestsReportStateRpc,
   WsPullRequestsSubscribeRefreshesRpc,
+  WsPullRequestsSubscribeLinkedThreadRefreshesRpc,
   WsPullRequestsReviewerCandidatesRpc,
   WsPullRequestsRequestReviewersRpc,
   WsPullRequestsLabelCandidatesRpc,
@@ -2301,14 +2480,14 @@ export const WsRpcGroup = RpcGroup.make(
   WsSourceControlAppAccessRpc,
   WsSourceControlStarredRpc,
   WsSourceControlStarRpc,
-  WsIssuesListRpc,
-  WsIssuesGetRpc,
-  WsIssuesTestConnectionRpc,
-  WsIssuesCatalogRpc,
-  WsIssuesBoardRpc,
-  WsIssuesExecuteRpc,
-  WsIssuesPullRpc,
-  WsIssuesSetStatusRpc,
+  WsOnesIssuesListRpc,
+  WsOnesIssuesGetRpc,
+  WsOnesIssuesTestConnectionRpc,
+  WsOnesIssuesCatalogRpc,
+  WsOnesIssuesBoardRpc,
+  WsOnesIssuesExecuteRpc,
+  WsOnesIssuesPullRpc,
+  WsOnesIssuesSetStatusRpc,
   WsMemoryGetStatsRpc,
   WsMemoryClearRpc,
   WsTranslationTranslateRpc,
