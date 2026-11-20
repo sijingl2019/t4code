@@ -331,7 +331,7 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
             icon={<ChartNoAxesColumnIcon />}
             label={gt("Usage")}
             onClick={handleUsageClick}
-          />{" "}
+          />
         </>
       )}
       <SidebarThreadUndoNotice />

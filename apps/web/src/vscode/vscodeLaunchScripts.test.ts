@@ -32,7 +32,7 @@ describe("parseVscodeLaunchScripts", () => {
     expect(parseVscodeLaunchScripts(LAUNCH, "/repo", "linux")).toEqual([
       {
         name: "Desktop: dev",
-        command: 'node scripts/dev-runner.ts dev:desktop "two words"',
+        command: 'node /repo/scripts/dev-runner.ts dev:desktop "two words"',
         cwd: "/repo",
         env: { PATH: "/repo/bin:${env:PATH}" },
       },
@@ -63,7 +63,11 @@ describe("debugpy configs", () => {
   it("runs under the configured or settings interpreter, else asks for one", () => {
     const [app, mod, raw, ...rest] = parseVscodeLaunchScripts(PY, "/repo", "linux");
     expect(rest).toEqual([]);
-    expect(app?.python).toEqual({ tail: "app.py --port 80", interpreter: null, os: "linux" });
+    expect(app?.python).toEqual({
+      tail: "/repo/app.py --port 80",
+      interpreter: null,
+      os: "linux",
+    });
     expect(mod?.command).toBe("/opt/py/bin/python -m pkg.main");
     expect(raw?.python?.tail).toBe("x.py --a 1");
     const withSetting = parseVscodeLaunchScripts(
@@ -72,7 +76,27 @@ describe("debugpy configs", () => {
       "linux",
       "${workspaceFolder}/.venv/bin/python",
     );
-    expect(withSetting[0]?.command).toBe("./.venv/bin/python app.py --port 80");
+    expect(withSetting[0]?.command).toBe("/repo/.venv/bin/python /repo/app.py --port 80");
+  });
+
+  it("keeps workspace paths absolute when cwd is a subdirectory", () => {
+    const [script] = parseVscodeLaunchScripts(
+      `{ "configurations": [{
+        "name": "Cwd",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "\${workspaceFolder}/backend/main.py",
+        "cwd": "\${workspaceFolder}/backend",
+        "python": "\${workspaceFolder}/.venv/bin/python"
+      }] }`,
+      "/repo",
+      "linux",
+    );
+    expect(script).toMatchObject({
+      command: "/repo/.venv/bin/python /repo/backend/main.py",
+      cwd: "/repo/backend",
+      python: { tail: "/repo/backend/main.py" },
+    });
   });
 
   it("reads the interpreter from VS Code settings", () => {
@@ -83,12 +107,17 @@ describe("debugpy configs", () => {
   });
 
   it("quotes interpreter paths per shell", () => {
-    expect(pythonCommand("C:\\Program Files\\Py\\python.exe", "a.py", "windows")).toBe(
+    expect(pythonCommand("C:\\Program Files\\Py\\python.exe", "a.py", "windows", "E:\\repo")).toBe(
       '& "C:\\Program Files\\Py\\python.exe" a.py',
     );
-    expect(pythonCommand("${workspaceFolder}\\.venv\\Scripts\\python.exe", "a.py", "windows")).toBe(
-      ".\\.venv\\Scripts\\python.exe a.py",
-    );
-    expect(pythonCommand("python", "", "linux")).toBe("python");
+    expect(
+      pythonCommand(
+        "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+        "a.py",
+        "windows",
+        "E:\\repo",
+      ),
+    ).toBe("E:\\repo\\.venv\\Scripts\\python.exe a.py");
+    expect(pythonCommand("python", "", "linux", "/repo")).toBe("python");
   });
 });

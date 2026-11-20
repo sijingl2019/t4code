@@ -73,6 +73,8 @@ import {
 import {
   CheckIcon,
   ChevronDownIcon,
+  ChevronsDownUpIcon,
+  ChevronsUpDownIcon,
   FolderIcon,
   ListFilterIcon,
   LoaderIcon,
@@ -446,6 +448,10 @@ function useSidebarThreads(input: {
   readonly runningOnly: boolean;
   readonly runningCollapsedProjectKeys: ReadonlySet<string>;
   readonly toggleRunningProjectFolder: (projectKey: string) => void;
+  readonly setRunningProjectFoldersCollapsed: (
+    projectKeys: readonly string[],
+    collapsed: boolean,
+  ) => void;
 }) {
   const {
     projectScopeKey,
@@ -461,6 +467,7 @@ function useSidebarThreads(input: {
     runningOnly,
     runningCollapsedProjectKeys,
     toggleRunningProjectFolder,
+    setRunningProjectFoldersCollapsed,
   } = input;
   // Folders already separate the work, so boring mode has no Working shelf.
   const workingShelfEnabled =
@@ -579,6 +586,23 @@ function useSidebarThreads(input: {
     () => false,
     (group) => settledCollapsedProjectKeys.has(group.projectKey),
   );
+  const allProjectFoldersCollapsed =
+    projectFolders !== null &&
+    projectFolders.length > 0 &&
+    projectFolders.every((folder) => folder.collapsed);
+  const toggleAllProjectFolders = () => {
+    if (projectFolders === null || projectFolders.length === 0) return;
+    const collapse = !allProjectFoldersCollapsed;
+    const projectKeys = projectFolders.map((folder) => folder.group.projectKey);
+    if (runningOnly) {
+      setRunningProjectFoldersCollapsed(projectKeys, collapse);
+    } else {
+      setProjectExpanded(
+        projectFolders.flatMap((folder) => sidebarFolderExpansionKeys(folder.group)),
+        !collapse,
+      );
+    }
+  };
   const orderedThreads = [
     ...pinnedThreads,
     ...(projectFolders === null
@@ -625,6 +649,8 @@ function useSidebarThreads(input: {
     workingShelfExpanded,
     toggleWorkingShelf: () => setWorkingShelfExpanded((value) => !value),
     projectFolders,
+    allProjectFoldersCollapsed,
+    toggleAllProjectFolders,
     archivedShelfExpanded,
     toggleArchivedShelf: () => setArchivedShelfExpanded((value) => !value),
     toggleProjectFolder: (group: SidebarProjectSnapshot) => {
@@ -1092,6 +1118,19 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       return next;
     });
   };
+  const setRunningProjectFoldersCollapsed = (
+    projectKeys: readonly string[],
+    collapsed: boolean,
+  ) => {
+    setRunningCollapsedProjectKeys((current) => {
+      const next = new Set(current);
+      for (const projectKey of projectKeys) {
+        if (collapsed) next.add(projectKey);
+        else next.delete(projectKey);
+      }
+      return next;
+    });
+  };
 
   const [searchHighlightKey, setSearchHighlightKey] = useState<string | null>(null);
   const connectedEnvironmentIds = useConnectedEnvironmentIds();
@@ -1408,6 +1447,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     workingShelfExpanded,
     toggleWorkingShelf,
     projectFolders,
+    allProjectFoldersCollapsed,
+    toggleAllProjectFolders,
     archivedShelfExpanded,
     toggleArchivedShelf,
     toggleProjectFolder,
@@ -1445,6 +1486,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     runningOnly,
     runningCollapsedProjectKeys,
     toggleRunningProjectFolder,
+    setRunningProjectFoldersCollapsed,
   });
 
   // Ranked across environments as the palette ranks them, so one
@@ -3093,6 +3135,22 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               hasProjects={projectGroups.length > 0}
               projectScope={
                 <>
+                  {hasProjectFolders ? (
+                    <SidebarHeaderIconButton
+                      label={
+                        allProjectFoldersCollapsed
+                          ? gt("Expand all folders")
+                          : gt("Collapse all folders")
+                      }
+                      onClick={toggleAllProjectFolders}
+                    >
+                      {allProjectFoldersCollapsed ? (
+                        <ChevronsUpDownIcon className="size-4" />
+                      ) : (
+                        <ChevronsDownUpIcon className="size-4" />
+                      )}
+                    </SidebarHeaderIconButton>
+                  ) : null}
                   <SidebarHeaderIconButton
                     label={runningOnly ? gt("Show all threads") : gt("Show running threads only")}
                     aria-pressed={runningOnly}

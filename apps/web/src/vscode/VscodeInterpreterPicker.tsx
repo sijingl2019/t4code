@@ -5,6 +5,7 @@ import {
   runAtomCommand,
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
+import { msg, useGT } from "gt-react";
 import { applyEdits, modify } from "jsonc-parser";
 import { TerminalIcon } from "lucide-react";
 import { useState } from "react";
@@ -15,6 +16,7 @@ import { CommandPaletteResults } from "~/components/CommandPaletteResults";
 import { getProjectFileQueryAtom } from "~/components/files/projectFilesQueryState";
 import { CommandDialog, CommandDialogPopup } from "~/components/ui/command";
 import { toastManager } from "~/components/ui/toast";
+import { m } from "~/i18n/messages";
 import { appAtomRegistry } from "~/rpc/atomRegistry";
 import { primaryServerKeybindingsAtom } from "~/state/server";
 import { projectEnvironment } from "~/state/projects";
@@ -69,7 +71,7 @@ async function findInterpreters(
   const globals = (windows ? ["python", "py"] : ["python3", "python"]).map((path) => ({
     path,
     title: path,
-    description: "Global, resolved from PATH",
+    description: m(msg("Global, resolved from PATH")),
   }));
   return [...venvs.filter((venv) => venv !== null), ...globals];
 }
@@ -86,14 +88,14 @@ async function saveInterpreter(environmentId: EnvironmentId, cwd: string, interp
     appAtomRegistry,
     projectEnvironment.writeFile,
     { environmentId, input: { cwd, relativePath: VSCODE_SETTINGS_FILE, contents } },
-    { label: "Save Python interpreter", reportFailure: false },
+    { label: m(msg("Save Python interpreter")), reportFailure: false },
   );
   if (written._tag === "Failure") {
     const error = squashAtomCommandFailure(written);
     toastManager.add({
       type: "warning",
-      title: "Could not save the interpreter to .vscode/settings.json",
-      description: error instanceof Error ? error.message : "It is used for this run only.",
+      title: m(msg("Could not save the interpreter to .vscode/settings.json")),
+      description: error instanceof Error ? error.message : m(msg("It is used for this run only.")),
     });
     return;
   }
@@ -113,6 +115,7 @@ export function useVscodeLaunchRunner(input: {
   const [query, setQuery] = useState("");
   const [highlighted, setHighlighted] = useState<string | null>(null);
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
+  const gt = useGT();
   const { environmentId, cwd, run } = input;
 
   const runScript = (script: VscodeLaunchScript) => {
@@ -136,7 +139,7 @@ export function useVscodeLaunchRunner(input: {
     void saveInterpreter(environmentId, cwd, interpreter);
     run({
       ...script,
-      command: pythonCommand(interpreter, python.tail, python.os),
+      command: pythonCommand(interpreter, python.tail, python.os, cwd),
       python: { ...python, interpreter },
     });
   };
@@ -144,7 +147,13 @@ export function useVscodeLaunchRunner(input: {
   const typed = query.trim();
   const items: CommandPaletteActionItem[] = [
     ...(typed
-      ? [{ path: typed, title: `Use "${typed}"`, description: "Enter interpreter path" }]
+      ? [
+          {
+            path: typed,
+            title: gt('Use "{path}"', { path: typed }),
+            description: gt("Enter interpreter path"),
+          },
+        ]
       : []),
     ...(pending?.interpreters ?? []),
   ].map((interpreter) => ({
@@ -161,17 +170,19 @@ export function useVscodeLaunchRunner(input: {
     <CommandDialog open={pending !== null} onOpenChange={(open) => !open && setPending(null)}>
       {pending ? (
         <CommandDialogPopup
-          aria-label="Select Python interpreter"
+          aria-label={gt("Select Python interpreter")}
           className="overflow-hidden"
           onBackdropPointerDown={() => setPending(null)}
         >
           <CommandPaletteContent
-            aria-label="Select Python interpreter"
+            aria-label={gt("Select Python interpreter")}
             autoHighlight="always"
-            escapeLabel="Close"
-            footerActionLabel="Select interpreter"
+            escapeLabel={gt("Close")}
+            footerActionLabel={gt("Select interpreter")}
             inputProps={{
-              placeholder: `Select interpreter for "${pending.script.name}", or type a path…`,
+              placeholder: gt('Select interpreter for "{name}", or type a path…', {
+                name: pending.script.name,
+              }),
             }}
             mode="none"
             onItemHighlighted={(value) => setHighlighted(typeof value === "string" ? value : null)}
@@ -191,7 +202,7 @@ export function useVscodeLaunchRunner(input: {
               onExecuteItem={(item) => {
                 if (item.kind === "action") void item.run();
               }}
-              emptyStateMessage="No interpreters found. Type a path."
+              emptyStateMessage={gt("No interpreters found. Type a path.")}
             />
           </CommandPaletteContent>
         </CommandDialogPopup>

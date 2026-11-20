@@ -218,7 +218,7 @@ export function AssistantSelectionToolbar({
         <div
           ref={toolbarRef}
           role="toolbar"
-          className="surface-glass fixed z-50 flex max-w-[calc(100vw-1rem)] items-center rounded-full border border-border/60 p-0.5 text-sm shadow-sm"
+          className="surface-glass fixed z-50 grid max-w-[calc(100vw-1rem)] grid-cols-2 items-center rounded-full border border-border/60 text-sm shadow-sm"
           style={{ left: selection.position.x, top: selection.position.y }}
           onPointerDown={(event) => event.preventDefault()}
           onKeyDown={(event) => {
@@ -231,8 +231,9 @@ export function AssistantSelectionToolbar({
         >
           <Button
             type="button"
-            size="xs"
+            size="sm-pill"
             variant="ghost"
+            className="w-full"
             disabled={tooLong}
             aria-label={
               tooLong ? gt("Selection is too long to cite") : gt("Cite selection in composer")
@@ -244,11 +245,11 @@ export function AssistantSelectionToolbar({
               ? gt("Shorten selection")
               : gt("Cite", { $context: "verb, button that quotes the selected text" })}
           </Button>
-          <span aria-hidden="true" className="h-3.5 w-px shrink-0 bg-border" />
           <Button
             type="button"
-            size="xs"
+            size="sm-pill"
             variant="ghost"
+            className="w-full"
             aria-label={gt("Translate selection")}
             onClick={translate}
           >

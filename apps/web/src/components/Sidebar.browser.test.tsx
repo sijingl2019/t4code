@@ -27,6 +27,7 @@ import { useProjects, useServerConfigs, useQuietThreadShells } from "../state/en
 import { readEnvironmentScope, useEnvironmentScope } from "../state/session";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
 import { useTerminalUiStateStore } from "../terminalUiStateStore";
+import { useUiStateStore } from "../uiStateStore";
 import { readLocalApi } from "../localApi";
 import type { Project } from "../types";
 import Sidebar from "./Sidebar";
@@ -197,6 +198,13 @@ describe("sidebar running filter", () => {
     await expect.element(screen.getByText("Running thread")).toBeInTheDocument();
     await expect.element(screen.getByText("Thread 0")).not.toBeInTheDocument();
 
+    await userEvent.click(
+      screen.getByRole("button", { name: "Collapse all folders", exact: true }),
+    );
+    await expect.element(folder).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(screen.getByRole("button", { name: "Expand all folders", exact: true }));
+    await expect.element(folder).toHaveAttribute("aria-expanded", "true");
+
     await userEvent.click(folder);
     await expect.element(folder).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(screen.getByRole("button", { name: "Show all threads", exact: true }));
@@ -206,6 +214,72 @@ describe("sidebar running filter", () => {
       screen.getByRole("button", { name: "Show running threads only", exact: true }),
     );
     await expect.element(folder).toHaveAttribute("aria-expanded", "true");
+  });
+});
+
+describe("sidebar project folder bulk toggle", () => {
+  it("collapses and expands every project folder from the header", async () => {
+    using stack = new DisposableStack();
+    const previousSettings = getClientSettings();
+    stack.defer(() => __setClientSettingsForTests(previousSettings));
+    stack.defer(() => useUiStateStore.setState({ projectExpandedById: {} }));
+    __setClientSettingsForTests({
+      ...DEFAULT_CLIENT_SETTINGS,
+      boringSidebarEnabled: true,
+    });
+    useUiStateStore.setState({ projectExpandedById: {} });
+
+    const alpha = project("alpha");
+    const beta = project("beta");
+    vi.mocked(useProjects).mockReturnValue([alpha, beta]);
+    vi.mocked(useQuietThreadShells).mockReturnValue([
+      threadShell(alpha.id, 0),
+      threadShell(beta.id, 1),
+    ]);
+    vi.mocked(useThreadRouteTarget).mockReturnValue(null);
+    vi.mocked(useHandleNewThread).mockReturnValue({
+      activeDraftThread: null,
+      activeThread: null,
+      defaultProjectRef: { environmentId: alpha.environmentId, projectId: alpha.id },
+      defaultProjectFallbackReady: true,
+      handleNewThread: vi.fn().mockResolvedValue(null),
+      routeDraftId: null,
+      routeThreadRef: null,
+    });
+    vi.mocked(useServerConfigs).mockReturnValue(
+      new Map([
+        [
+          alpha.environmentId,
+          {
+            scratchWorkspaceRoot: null,
+            shellThreadFamilies: false,
+          } as unknown as EnvironmentServerConfig,
+        ],
+      ]),
+    );
+
+    await using screen = await render(
+      <SidebarProvider>
+        <Sidebar routeReveal={{ observedKey: null, pendingKey: null }} />
+      </SidebarProvider>,
+    );
+    const folderStates = () =>
+      Array.from(
+        screen.container.querySelectorAll<HTMLElement>('[data-sidebar-row^="folder:"]'),
+      ).map((folder) => folder.getAttribute("aria-expanded"));
+    await vi.waitFor(() => expect(folderStates()).toEqual(["true", "true"]));
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Collapse all folders", exact: true }),
+    );
+    await vi.waitFor(() => expect(folderStates()).toEqual(["false", "false"]));
+    await expect.element(screen.getByText("Thread 0")).not.toBeInTheDocument();
+    await expect.element(screen.getByText("Thread 1")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Expand all folders", exact: true }));
+    await vi.waitFor(() => expect(folderStates()).toEqual(["true", "true"]));
+    await expect.element(screen.getByText("Thread 0")).toBeInTheDocument();
+    await expect.element(screen.getByText("Thread 1")).toBeInTheDocument();
   });
 });
 

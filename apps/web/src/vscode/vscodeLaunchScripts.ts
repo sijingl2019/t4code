@@ -39,15 +39,17 @@ const strings = (value: unknown): string[] =>
 // Bash and PowerShell both accept a double-quoted word; only quote when needed.
 const shellWord = (word: string) => (/^[\w./:=@%+,-]+$/.test(word) ? word : `"${word}"`);
 
-const workspacePath = (value: string) => value.replaceAll("${workspaceFolder}", ".");
+const workspacePath = (value: string, workspaceFolder: string) =>
+  value.replaceAll("${workspaceFolder}", workspaceFolder);
 
 /** The interpreter as the first word of a terminal command. */
 export function pythonCommand(
   interpreter: string,
   tail: string,
   os: ExecutionEnvironmentPlatformOs,
+  workspaceFolder: string,
 ): string {
-  let exe = workspacePath(interpreter);
+  let exe = workspacePath(interpreter, workspaceFolder);
   // A relative path needs `./` to run as a command, `.venv/...` included.
   if (!/^(\.{1,2}[\\/]|[\\/]|[A-Za-z]:)/.test(exe) && /[\\/]/.test(exe)) exe = `./${exe}`;
   // PowerShell takes `\` literally; bash would read it as an escape.
@@ -120,11 +122,11 @@ export function parseVscodeLaunchScripts(
     } else {
       return [];
     }
-    // The terminal opens at the workspace folder, so relative paths keep commands short.
-    words = words.map((word) => folder(word, ".").replace(/^\.\//, "").replace(/^\.\\/, ""));
+    // `cwd` may be a subdirectory, so workspace paths must stay absolute in the command.
+    words = words.map((word) => folder(word, workspaceFolder));
     const joined = [
       ...words.map((word) => shellWord(word || ".")),
-      ...(rawArgs ? [folder(rawArgs, ".")] : []),
+      ...(rawArgs ? [folder(rawArgs, workspaceFolder)] : []),
     ].join(" ");
     const interpreter = isPython
       ? typeof config.python === "string"
@@ -133,11 +135,11 @@ export function parseVscodeLaunchScripts(
       : null;
     const command =
       type === "node-terminal"
-        ? folder(config.command as string, ".")
+        ? folder(config.command as string, workspaceFolder)
         : isPython
           ? interpreter === null
             ? joined
-            : pythonCommand(interpreter, joined, os)
+            : pythonCommand(interpreter, joined, os, workspaceFolder)
           : joined;
     // Other VS Code variables (`${file}`, inputs) have no meaning outside the editor.
     if (/\$\{(?!env:)/.test(command)) return [];
