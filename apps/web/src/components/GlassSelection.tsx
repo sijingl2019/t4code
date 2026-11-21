@@ -93,6 +93,9 @@ export function GlassSelection({
     const moveTo = (next: HTMLElement, animate: boolean) => {
       const edges = edgesOf(next);
       if (edges.right <= edges.left || edges.bottom <= edges.top) return hide();
+      if (visible && goal && EDGES.every((edge) => Math.abs(goal![edge] - edges[edge]) < 0.5)) {
+        return;
+      }
       goal = edges;
       if (!animate || !visible || reducedMotion.matches) {
         if (frame && !animate) return; // a resize mid-flight just retargets the running springs
@@ -182,7 +185,10 @@ export function GlassSelection({
     const mutations = new MutationObserver(() => {
       if (pointerItem && !pointerItem.isConnected) pointerItem = null;
       if (focusItem && !focusItem.isConnected) focusItem = null;
+      const previous = target;
       sync();
+      // Rows added or removed above the current item move it without resizing it or the host.
+      if (target && target === previous && target.isConnected) moveTo(target, true);
     });
     mutations.observe(host, {
       subtree: true,
