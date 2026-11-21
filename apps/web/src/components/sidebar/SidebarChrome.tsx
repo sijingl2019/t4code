@@ -1,3 +1,4 @@
+import { GlassSelection } from "../GlassSelection";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -225,7 +226,13 @@ function SidebarUtilityItem({
       <Tooltip>
         <TooltipTrigger
           render={
-            <SidebarMenuButton aria-label={label} onClick={onClick} size="icon">
+            <SidebarMenuButton
+              data-glass-utility=""
+              variant="glass-target"
+              aria-label={label}
+              onClick={onClick}
+              size="icon"
+            >
               {icon}
             </SidebarMenuButton>
           }
@@ -286,7 +293,8 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
   };
 
   return (
-    <SidebarMenu className="flex-row items-center">
+    <SidebarMenu className="relative isolate flex-row items-center">
+      <GlassSelection selector="[data-glass-utility]" />
       {isOnUtilityPage ? (
         <SidebarMenuItem className="min-w-0 flex-1">
           <SidebarMenuButton onClick={handleBackClick}>
