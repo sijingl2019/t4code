@@ -3566,7 +3566,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                         "after:pointer-events-none after:absolute after:inset-x-0 after:-bottom-30 after:h-px after:content-['']",
                     )}
                   >
-                    <GlassSelection selector="[data-glass-project], [data-glass-thread]" />
+                    <GlassSelection selector="[data-glass-thread]" follow={false} />
                     {(() => {
                       const renderThreadRow = (
                         thread: EnvironmentThreadShell,

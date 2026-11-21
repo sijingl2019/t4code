@@ -1,107 +1,215 @@
 import { useLayoutEffect, useRef } from "react";
 import { observeResize } from "~/lib/observeResize";
 
-/** One moving surface shared by the controls in its positioned parent. */
+type Edges = { left: number; right: number; top: number; bottom: number };
+type EdgeName = keyof Edges;
+const EDGES: readonly EdgeName[] = ["left", "right", "top", "bottom"];
+// Underdamped springs: the leading edge is stiff and runs ahead, the trailing edge lags, so the
+// capsule stretches along the motion, then both overshoot slightly and settle (the rebound).
+const LEAD = { stiffness: 520, damping: 22 };
+const TRAIL = { stiffness: 210, damping: 17 };
+
+/**
+ * One glass capsule shared by the controls in its positioned parent. It rests on the item marked
+ * `aria-current="page"` / `data-active="true"`; with `follow` it also tracks pointer and focus while
+ * they are inside, and returns to the current item (or fades out, or stays with `initial`) after.
+ */
 export function GlassSelection({
   selector,
   initial = false,
+  follow = true,
 }: {
   selector: string;
   initial?: boolean;
+  follow?: boolean;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- tracks control geometry and animates an imperative DOM surface
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- tracks control geometry and drives an imperative DOM surface
   useLayoutEffect(() => {
     const capsule = ref.current;
     const host = capsule?.parentElement;
     if (!capsule || !host) return;
-    let target: HTMLElement | null = null;
-    let animation: Animation | undefined;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const place = (next: HTMLElement, animate: boolean) => {
-      const from = capsule.getBoundingClientRect();
-      const bounds = next.getBoundingClientRect();
+    const current = { left: 0, right: 0, top: 0, bottom: 0 };
+    const velocity = { left: 0, right: 0, top: 0, bottom: 0 };
+    let goal: Edges | null = null;
+    let springs: Record<EdgeName, typeof LEAD> = {
+      left: LEAD,
+      right: LEAD,
+      top: LEAD,
+      bottom: LEAD,
+    };
+    let visible = false;
+    let frame = 0;
+    let lastTime = 0;
+    let target: HTMLElement | null = null;
+
+    const paint = () => {
+      capsule.style.left = `${current.left}px`;
+      capsule.style.top = `${current.top}px`;
+      capsule.style.width = `${Math.max(0, current.right - current.left)}px`;
+      capsule.style.height = `${Math.max(0, current.bottom - current.top)}px`;
+    };
+    const stop = () => {
+      cancelAnimationFrame(frame);
+      frame = 0;
+    };
+    const step = (time: number) => {
+      // Clamp the step so a backgrounded tab resumes without a jump.
+      const dt = Math.min(0.032, (time - lastTime) / 1000 || 0.016);
+      lastTime = time;
+      let settled = true;
+      for (const edge of EDGES) {
+        const to = goal![edge];
+        const { stiffness, damping } = springs[edge];
+        velocity[edge] += (stiffness * (to - current[edge]) - damping * velocity[edge]) * dt;
+        current[edge] += velocity[edge] * dt;
+        if (Math.abs(to - current[edge]) > 0.3 || Math.abs(velocity[edge]) > 4) settled = false;
+      }
+      if (settled) {
+        Object.assign(current, goal);
+        velocity.left = velocity.right = velocity.top = velocity.bottom = 0;
+        paint();
+        frame = 0;
+        return;
+      }
+      paint();
+      frame = requestAnimationFrame(step);
+    };
+
+    const edgesOf = (element: HTMLElement): Edges => {
+      const bounds = element.getBoundingClientRect();
       const parent = host.getBoundingClientRect();
-      const left = `${bounds.left - parent.left + host.scrollLeft - host.clientLeft}px`;
-      const top = `${bounds.top - parent.top + host.scrollTop - host.clientTop}px`;
-      if (
-        !animate &&
-        capsule.style.left === left &&
-        capsule.style.top === top &&
-        capsule.style.width === `${bounds.width}px` &&
-        capsule.style.height === `${bounds.height}px`
-      )
-        return;
-      const wasVisible = capsule.style.opacity === "1";
-      animation?.cancel();
-      Object.assign(capsule.style, {
-        width: `${bounds.width}px`,
-        height: `${bounds.height}px`,
-        left,
-        top,
-        opacity: "1",
-      });
-      if (!animate || !wasVisible || reducedMotion.matches || !bounds.width || !bounds.height)
-        return;
-      const dx = from.left + from.width / 2 - bounds.left - bounds.width / 2;
-      const dy = from.top + from.height / 2 - bounds.top - bounds.height / 2;
-      const horizontal = Math.abs(dx) > Math.abs(dy);
-      const stretch = horizontal ? Math.abs(dx) / bounds.width : Math.abs(dy) / bounds.height;
-      animation = capsule.animate(
-        [
-          {
-            transform: `translate(${dx}px, ${dy}px) scale(${from.width / bounds.width}, ${from.height / bounds.height})`,
-          },
-          {
-            transform: `translate(${dx * 0.45}px, ${dy * 0.45}px) scale(${horizontal ? 1 + stretch * 0.9 : 0.97}, ${horizontal ? 0.97 : 1 + stretch * 0.9})`,
-            offset: 0.42,
-          },
-          {
-            transform: `translate(${-dx * 0.025}px, ${-dy * 0.025}px) scale(${horizontal ? 0.96 : 1.02}, ${horizontal ? 1.02 : 0.96})`,
-            offset: 0.76,
-          },
-          { transform: "translate(0, 0) scale(1, 1)" },
-        ],
-        { duration: 560, easing: "cubic-bezier(0.22, 0.7, 0.25, 1)" },
-      );
+      const left = bounds.left - parent.left + host.scrollLeft - host.clientLeft;
+      const top = bounds.top - parent.top + host.scrollTop - host.clientTop;
+      return { left, right: left + bounds.width, top, bottom: top + bounds.height };
     };
-    const reposition = () => {
-      if (target?.isConnected) place(target, false);
-      else capsule.style.opacity = "0";
+    const hide = () => {
+      stop();
+      visible = false;
+      target = null;
+      capsule.style.opacity = "0";
     };
-    const stopHostResize = observeResize(host, reposition);
+    const moveTo = (next: HTMLElement, animate: boolean) => {
+      const edges = edgesOf(next);
+      if (edges.right <= edges.left || edges.bottom <= edges.top) return hide();
+      goal = edges;
+      if (!animate || !visible || reducedMotion.matches) {
+        if (frame && !animate) return; // a resize mid-flight just retargets the running springs
+        stop();
+        Object.assign(current, edges);
+        velocity.left = velocity.right = velocity.top = velocity.bottom = 0;
+        paint();
+      } else {
+        const forwardX = edges.left + edges.right > current.left + current.right;
+        const forwardY = edges.top + edges.bottom > current.top + current.bottom;
+        springs = {
+          left: forwardX ? TRAIL : LEAD,
+          right: forwardX ? LEAD : TRAIL,
+          top: forwardY ? TRAIL : LEAD,
+          bottom: forwardY ? LEAD : TRAIL,
+        };
+        if (!frame) {
+          lastTime = performance.now();
+          frame = requestAnimationFrame(step);
+        }
+      }
+      visible = true;
+      capsule.style.opacity = "1";
+    };
+
     let stopTargetResize: (() => void) | undefined;
-    const select = (next: HTMLElement) => {
-      if (next === target || next.matches(":disabled, [aria-disabled=true]")) return;
+    const select = (next: HTMLElement | null) => {
+      if (next === target) return;
       stopTargetResize?.();
-      place(next, true);
+      stopTargetResize = undefined;
+      if (!next) {
+        if (!initial || !target?.isConnected) hide();
+        return;
+      }
+      moveTo(next, true);
       target = next;
-      stopTargetResize = observeResize(next, reposition);
+      stopTargetResize = observeResize(next, () => {
+        if (target?.isConnected) moveTo(target, false);
+      });
     };
-    const enter = (event: Event) => {
-      if (!(event.target instanceof Element)) return;
-      const next = event.target.closest<HTMLElement>(selector);
-      if (next && host.contains(next)) select(next);
+    const activeItem = () => {
+      for (const item of host.querySelectorAll<HTMLElement>(selector)) {
+        if (item.matches('[aria-current="page"], [data-active="true"]')) return item;
+      }
+      return null;
     };
-    host.addEventListener("pointerover", enter);
-    host.addEventListener("focusin", enter);
+
+    let pointerItem: HTMLElement | null = null;
+    let focusItem: HTMLElement | null = null;
+    const itemAt = (node: EventTarget | null) => {
+      if (!(node instanceof Element)) return null;
+      const item = node.closest<HTMLElement>(selector);
+      return item && host.contains(item) && !item.matches(":disabled, [aria-disabled=true]")
+        ? item
+        : null;
+    };
+    const sync = () =>
+      select(pointerItem ?? focusItem ?? activeItem() ?? (initial ? target : null));
+    const onPointerOver = (event: PointerEvent) => {
+      pointerItem = itemAt(event.target) ?? pointerItem;
+      sync();
+    };
+    const onPointerLeave = () => {
+      pointerItem = null;
+      sync();
+    };
+    const onFocusIn = (event: FocusEvent) => {
+      focusItem = itemAt(event.target);
+      sync();
+    };
+    const onFocusOut = (event: FocusEvent) => {
+      if (event.relatedTarget instanceof Node && host.contains(event.relatedTarget)) return;
+      focusItem = null;
+      sync();
+    };
+    if (follow) {
+      host.addEventListener("pointerover", onPointerOver);
+      host.addEventListener("pointerleave", onPointerLeave);
+      host.addEventListener("focusin", onFocusIn);
+      host.addEventListener("focusout", onFocusOut);
+    }
+    const stopHostResize = observeResize(host, () => {
+      if (target?.isConnected) moveTo(target, false);
+      else sync();
+    });
+    // Navigation flips aria-current; rows mount and unmount as folders open and lists scroll.
+    const mutations = new MutationObserver(() => {
+      if (pointerItem && !pointerItem.isConnected) pointerItem = null;
+      if (focusItem && !focusItem.isConnected) focusItem = null;
+      sync();
+    });
+    mutations.observe(host, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["aria-current", "data-active"],
+    });
     const first =
-      host.querySelector<HTMLElement>("[data-glass-thread][aria-current=page]") ??
+      activeItem() ??
       (initial ? host.querySelector<HTMLElement>(`${selector}:not(:disabled)`) : null);
     if (first) select(first);
     return () => {
-      animation?.cancel();
+      stop();
+      mutations.disconnect();
       stopHostResize();
       stopTargetResize?.();
-      host.removeEventListener("pointerover", enter);
-      host.removeEventListener("focusin", enter);
+      host.removeEventListener("pointerover", onPointerOver);
+      host.removeEventListener("pointerleave", onPointerLeave);
+      host.removeEventListener("focusin", onFocusIn);
+      host.removeEventListener("focusout", onFocusOut);
     };
-  }, [selector, initial]);
+  }, [selector, initial, follow]);
   return (
     <span
       ref={ref}
       aria-hidden="true"
-      className="pointer-events-none absolute -z-1 rounded-full border border-white/40 bg-linear-to-b from-white/20 via-white/8 to-white/5 opacity-0 inset-shadow-xs inset-shadow-white/25 shadow-sm backdrop-blur-md backdrop-saturate-150"
+      className="pointer-events-none absolute -z-1 rounded-full border border-white/45 bg-linear-to-b from-white/22 via-white/10 to-white/6 opacity-0 inset-shadow-2xs inset-shadow-white/60 shadow-md shadow-black/15 backdrop-blur-md backdrop-saturate-150 transition-opacity duration-150 light:border-black/10 light:from-white/80 light:via-white/55 light:to-white/40 light:inset-shadow-white light:shadow-black/8"
     />
   );
 }
