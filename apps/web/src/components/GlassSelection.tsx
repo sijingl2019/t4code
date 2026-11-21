@@ -46,15 +46,15 @@ export function GlassSelection({
       const dx = from.left + from.width / 2 - bounds.left - bounds.width / 2;
       const dy = from.top + from.height / 2 - bounds.top - bounds.height / 2;
       const horizontal = Math.abs(dx) > Math.abs(dy);
-      const stretch = Math.min(0.3, Math.hypot(dx, dy) / 500);
+      const stretch = horizontal ? Math.abs(dx) / bounds.width : Math.abs(dy) / bounds.height;
       animation = capsule.animate(
         [
           {
             transform: `translate(${dx}px, ${dy}px) scale(${from.width / bounds.width}, ${from.height / bounds.height})`,
           },
           {
-            transform: `translate(${dx * 0.4}px, ${dy * 0.4}px) scale(${horizontal ? 1 + stretch : 0.97}, ${horizontal ? 0.97 : 1 + stretch})`,
-            offset: 0.4,
+            transform: `translate(${dx * 0.45}px, ${dy * 0.45}px) scale(${horizontal ? 1 + stretch * 0.9 : 0.97}, ${horizontal ? 0.97 : 1 + stretch * 0.9})`,
+            offset: 0.42,
           },
           {
             transform: `translate(${-dx * 0.025}px, ${-dy * 0.025}px) scale(${horizontal ? 0.96 : 1.02}, ${horizontal ? 1.02 : 0.96})`,
@@ -62,7 +62,7 @@ export function GlassSelection({
           },
           { transform: "translate(0, 0) scale(1, 1)" },
         ],
-        { duration: 440, easing: "cubic-bezier(0.22, 0.7, 0.25, 1)" },
+        { duration: 560, easing: "cubic-bezier(0.22, 0.7, 0.25, 1)" },
       );
     };
     const reposition = () => {
@@ -85,7 +85,9 @@ export function GlassSelection({
     };
     host.addEventListener("pointerover", enter);
     host.addEventListener("focusin", enter);
-    const first = initial ? host.querySelector<HTMLElement>(`${selector}:not(:disabled)`) : null;
+    const first =
+      host.querySelector<HTMLElement>("[data-glass-thread][aria-current=page]") ??
+      (initial ? host.querySelector<HTMLElement>(`${selector}:not(:disabled)`) : null);
     if (first) select(first);
     return () => {
       animation?.cancel();
@@ -99,7 +101,7 @@ export function GlassSelection({
     <span
       ref={ref}
       aria-hidden="true"
-      className="pointer-events-none absolute -z-1 rounded-full border border-white/25 bg-foreground/8 opacity-0 inset-shadow-xs inset-shadow-white/25 shadow-sm backdrop-blur-md backdrop-saturate-150"
+      className="pointer-events-none absolute -z-1 rounded-full border border-white/40 bg-linear-to-b from-white/20 via-white/8 to-white/5 opacity-0 inset-shadow-xs inset-shadow-white/25 shadow-sm backdrop-blur-md backdrop-saturate-150"
     />
   );
 }
