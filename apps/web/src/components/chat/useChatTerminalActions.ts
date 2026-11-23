@@ -5,7 +5,7 @@ import type {
   EnvironmentProject,
   EnvironmentThreadShell,
 } from "@t3tools/client-runtime/state/shell";
-import type { Dispatch } from "react";
+import { useRef, type Dispatch } from "react";
 import type { ComposerHandleRef } from "../../composerHandleContext";
 import { selectThreadTerminalUiState } from "../../terminalUiStateStore";
 import { useStableCallback } from "../../hooks/useStableCallback";
@@ -106,6 +106,7 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
     setTerminalUiLaunchContext,
     setThreadError,
   } = input;
+  const pendingActionTerminals = useRef(new Map<string, string>());
   const openPreview = useAtomCommand(previewEnvironment.open, { reportFailure: false });
 
   const hasTerminalWriteAccess = () =>
@@ -211,6 +212,7 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
       env?: Record<string, string>;
       worktreePath?: string | null;
       preferNewTerminal?: boolean;
+      pairTerminal?: boolean;
       rememberAsLastInvoked?: boolean;
       shellHistory?: "preserve" | "suppress";
     },
@@ -262,13 +264,19 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
                 useTerminalUiStateStore.getState().terminalUiStateByThreadKey,
                 activeThreadRef,
               );
+              const pairAction = options?.pairTerminal ?? options?.rememberAsLastInvoked !== false;
+              const key = JSON.stringify([activeThreadRef.environmentId, activeThreadRef.threadId]);
+              const pendingId = pendingActionTerminals.current.get(key);
               const group = latest.terminalGroups.find(
-                (entry) => entry.id === latest.activeTerminalGroupId,
+                (entry) => entry.terminalIds.length === 1 && entry.terminalIds[0] === pendingId,
               );
-              if (options?.rememberAsLastInvoked !== false && group?.terminalIds.length === 1) {
+              if (pairAction && group && pendingId) {
+                useTerminalUiStateStore.getState().setActiveTerminal(activeThreadRef, pendingId);
                 storeSplitTerminal(activeThreadRef, terminalId);
+                pendingActionTerminals.current.delete(key);
               } else {
                 storeNewTerminal(activeThreadRef, terminalId);
+                if (pairAction) pendingActionTerminals.current.set(key, terminalId);
               }
             })()
           : storeEnsureTerminal(activeThreadRef, terminalId, { open: true }),

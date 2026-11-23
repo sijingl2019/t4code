@@ -225,6 +225,7 @@ export function runVscodeLaunchScript(
       cwd: string;
       env: Record<string, string>;
       preferNewTerminal: boolean;
+      pairTerminal: boolean;
       rememberAsLastInvoked: boolean;
     },
   ) => unknown,
@@ -238,6 +239,12 @@ export function runVscodeLaunchScript(
       icon: "debug",
       runOnWorktreeCreate: false,
     },
-    { cwd: launch.cwd, env: launch.env, preferNewTerminal: true, rememberAsLastInvoked: false },
+    {
+      cwd: launch.cwd,
+      env: launch.env,
+      preferNewTerminal: true,
+      pairTerminal: true,
+      rememberAsLastInvoked: false,
+    },
   );
 }
