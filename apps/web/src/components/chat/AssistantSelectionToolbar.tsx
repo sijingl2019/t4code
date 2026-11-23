@@ -1,3 +1,4 @@
+import { GlassSelection } from "../GlassSelection";
 import {
   ASSISTANT_CITATION_MAX_TEXT_LENGTH,
   MessageId,
@@ -218,7 +219,7 @@ export function AssistantSelectionToolbar({
         <div
           ref={toolbarRef}
           role="toolbar"
-          className="surface-glass fixed z-50 grid max-w-[calc(100vw-1rem)] grid-cols-2 items-center rounded-full border border-border/60 text-sm shadow-sm"
+          className="surface-glass fixed isolate z-50 grid max-w-[calc(100vw-1rem)] grid-cols-2 items-center rounded-full border border-border/60 text-sm shadow-sm"
           style={{ left: selection.position.x, top: selection.position.y }}
           onPointerDown={(event) => event.preventDefault()}
           onKeyDown={(event) => {
@@ -229,10 +230,11 @@ export function AssistantSelectionToolbar({
             }
           }}
         >
+          <GlassSelection selector="button" initial />
           <Button
             type="button"
             size="sm-pill"
-            variant="ghost"
+            variant="glass-target"
             className="w-full"
             disabled={tooLong}
             aria-label={
@@ -248,7 +250,7 @@ export function AssistantSelectionToolbar({
           <Button
             type="button"
             size="sm-pill"
-            variant="ghost"
+            variant="glass-target"
             className="w-full"
             aria-label={gt("Translate selection")}
             onClick={translate}
