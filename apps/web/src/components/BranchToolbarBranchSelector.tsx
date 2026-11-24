@@ -55,6 +55,7 @@ import {
   deriveLocalBranchNameFromRemoteRef,
   isBranchHoldCurrent,
   isWorktreeChangeBlocked,
+  resolveBranchContextMenuActions,
   resolveBranchTriggerLabel,
   resolveBranchToolbarPrBranch,
   resolveBranchSelectionTarget,
@@ -76,6 +77,7 @@ import { ComboboxItem, ComboboxTrigger } from "./ui/combobox";
 import { ComposerControl } from "./chat/ComposerControl";
 import { MiddleTruncate } from "./ui/middle-truncate";
 import { BranchPicker, BranchPickerRefItem } from "./BranchPicker";
+import { BranchNameDialog } from "./BranchNameDialog";
 import { stackedThreadToast, toastManager } from "./ui/toast";
 
 export interface BranchToolbarBranchSelectorHandle {
@@ -101,6 +103,8 @@ interface BranchToolbarBranchSelectorProps {
 }
 
 const WORKTREE_CHANGE_BLOCKED_MESSAGE = msg("Stop the current turn to switch worktrees.");
+
+type BranchMenuAction = "checkout" | "create" | "merge" | "delete" | "rename" | "copy-branch-name";
 
 function toBranchActionErrorMessage(error: unknown): string {
   return thrownErrorMessage(error, m) ?? m(msg("An error occurred."));
@@ -146,6 +150,15 @@ export function BranchToolbarBranchSelector({
     reportFailure: false,
   });
   const createRefMutation = useAtomCommand(vcsEnvironment.createRef, {
+    reportFailure: false,
+  });
+  const deleteBranchMutation = useAtomCommand(vcsEnvironment.deleteBranch, {
+    reportFailure: false,
+  });
+  const renameBranchMutation = useAtomCommand(vcsEnvironment.renameBranch, {
+    reportFailure: false,
+  });
+  const mergeBranchMutation = useAtomCommand(vcsEnvironment.mergeBranch, {
     reportFailure: false,
   });
   const threadRef = scopeThreadRef(environmentId, threadId);
@@ -256,6 +269,8 @@ export function BranchToolbarBranchSelector({
 
   const [isBranchMenuOpen, setIsBranchMenuOpen] = useState(false);
   const [branchQuery, setBranchQuery] = useState("");
+  const [createBranchBaseTarget, setCreateBranchBaseTarget] = useState<string | null>(null);
+  const [renameBranchTarget, setRenameBranchTarget] = useState<string | null>(null);
 
   const branchStatusQuery = useEnvironmentQuery(
     branchCwd === null
@@ -283,7 +298,11 @@ export function BranchToolbarBranchSelector({
     messages,
   );
   const refs = branchRefState.refs;
-  const branchByName = new Map(refs.map((refName) => [refName.name, refName] as const));
+  const orderedRefs = [
+    ...refs.filter((refName) => refName.isRemote !== true),
+    ...refs.filter((refName) => refName.isRemote === true),
+  ];
+  const branchByName = new Map(orderedRefs.map((refName) => [refName.name, refName] as const));
   const normalizedBranchQuery = trimmedBranchQuery.toLowerCase();
   const prReference = parsePullRequestReference(trimmedBranchQuery);
   const isSelectingWorktreeBase =
@@ -316,7 +335,7 @@ export function BranchToolbarBranchSelector({
   const pickerCreateBranchItemValue = hasExactBranchMatch ? null : createBranchItemValue;
   const branchPickerItems = [
     ...(checkoutPullRequestItemValue ? [checkoutPullRequestItemValue] : []),
-    ...refs.map((refName) => refName.name),
+    ...orderedRefs.map((refName) => refName.name),
     ...(pickerCreateBranchItemValue ? [pickerCreateBranchItemValue] : []),
   ];
   const filteredBranchPickerItems =
@@ -408,20 +427,6 @@ export function BranchToolbarBranchSelector({
           description: toBranchActionErrorMessage(error),
         }),
       );
-    });
-  };
-
-  const handleBranchContextMenu = (event: ReactMouseEvent, branchName: string | null) => {
-    if (!branchName) return;
-    const api = readLocalApi();
-    if (!api) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const items: ContextMenuItem<"copy-branch-name">[] = [
-      { id: "copy-branch-name", label: gt("Copy branch name"), icon: "copy" },
-    ];
-    void api.contextMenu.show(items, { x: event.clientX, y: event.clientY }).then((action) => {
-      if (action === "copy-branch-name") copyBranchName(branchName);
     });
   };
 
@@ -567,7 +572,7 @@ export function BranchToolbarBranchSelector({
     });
   };
 
-  const createRef = (rawName: string) => {
+  const createRef = (rawName: string, baseRef?: string) => {
     if (!canChangeThreadBranch) return;
     const name = sanitizeNewRefName(rawName);
     if (!branchCwd || !name || isBranchActionPending) return;
@@ -584,6 +589,7 @@ export function BranchToolbarBranchSelector({
         input: {
           cwd: branchCwd,
           refName: name,
+          ...(baseRef === undefined ? {} : { baseRef }),
           switchRef: true,
         },
       });
@@ -610,6 +616,184 @@ export function BranchToolbarBranchSelector({
           }),
         );
       }
+    });
+  };
+
+  const handleBranchContextMenu = (event: ReactMouseEvent, branchName: string | null) => {
+    if (!branchName) return;
+    const api = readLocalApi();
+    if (!api) return;
+    const refName = branchByName.get(branchName) ?? null;
+    const isCurrent = refName?.current === true || branchName === currentGitBranch;
+    const canManageBranches =
+      canWriteSourceControl &&
+      (!hasServerThread || canOperateThread) &&
+      !isSelectingWorktreeBase &&
+      branchCwd !== null;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const actions = refName
+      ? resolveBranchContextMenuActions({
+          isRemote: refName.isRemote === true,
+          isCurrent,
+          currentBranch: currentGitBranch,
+          canWrite: canManageBranches,
+          isPending: isBranchActionPending,
+        })
+      : [];
+    const items: ContextMenuItem<BranchMenuAction>[] = actions.map((action) => {
+      switch (action.id) {
+        case "checkout":
+          return {
+            id: action.id,
+            label: gt("Checkout {branch}", { branch: branchName }),
+            icon: "git-branch",
+            disabled: action.disabled,
+          };
+        case "create":
+          return {
+            id: action.id,
+            label: gt('Create branch from "{branch}"...', { branch: branchName }),
+            icon: "git-branch",
+            disabled: action.disabled,
+          };
+        case "merge":
+          return {
+            id: action.id,
+            label: currentGitBranch
+              ? gt('Merge "{branch}" into "{currentBranch}"', {
+                  branch: branchName,
+                  currentBranch: currentGitBranch,
+                })
+              : gt("Merge into current branch"),
+            icon: "git-branch",
+            disabled: action.disabled,
+          };
+        case "delete":
+          return {
+            id: action.id,
+            label: gt("Delete {branch}", { branch: branchName }),
+            icon: "trash",
+            destructive: true,
+            disabled: action.disabled,
+          };
+        case "rename":
+          return {
+            id: action.id,
+            label: gt("Rename {branch}...", { branch: branchName }),
+            icon: "pencil",
+            disabled: action.disabled,
+          };
+      }
+    });
+    items.push({
+      id: "copy-branch-name",
+      label: gt("Copy branch name"),
+      icon: "copy",
+      separatorBefore: true,
+    });
+
+    void api.contextMenu.show(items, { x: event.clientX, y: event.clientY }).then((action) => {
+      if (action === "copy-branch-name") {
+        copyBranchName(branchName);
+        return;
+      }
+      if (!refName || !branchCwd) return;
+      if (action === "checkout") {
+        void selectBranch(refName);
+        return;
+      }
+
+      setIsBranchMenuOpen(false);
+      if (action === "create") {
+        setCreateBranchBaseTarget(branchName);
+        return;
+      }
+      if (action === "rename") {
+        setRenameBranchTarget(branchName);
+        return;
+      }
+
+      void (async () => {
+        if (action === "delete") {
+          const confirmed = await api.dialogs.confirm(
+            `${gt('Delete branch "{branch}"?', { branch: branchName })}\n${gt("This cannot be undone.")}`,
+            { variant: "destructive" },
+          );
+          if (!confirmed) return;
+          runBranchAction(async () => {
+            const result = await deleteBranchMutation({
+              environmentId,
+              input: { cwd: branchCwd, refName: branchName },
+            });
+            if (result._tag === "Success" || isAtomCommandInterrupted(result)) return;
+            toastManager.add(
+              stackedThreadToast({
+                type: "error",
+                title: gt("Failed to delete branch."),
+                description: toBranchActionErrorMessage(squashAtomCommandFailure(result)),
+              }),
+            );
+          });
+          return;
+        }
+
+        if (action === "merge" && currentGitBranch) {
+          const confirmed = await api.dialogs.confirm(
+            gt('Merge "{branch}" into "{currentBranch}"?', {
+              branch: branchName,
+              currentBranch: currentGitBranch,
+            }),
+          );
+          if (!confirmed) return;
+          runBranchAction(async () => {
+            const result = await mergeBranchMutation({
+              environmentId,
+              input: { cwd: branchCwd, refName: branchName },
+            });
+            await refreshLocalStatusForPicker({
+              environmentId,
+              input: { cwd: branchCwd, localOnly: true },
+            });
+            if (result._tag === "Success" || isAtomCommandInterrupted(result)) return;
+            toastManager.add(
+              stackedThreadToast({
+                type: "error",
+                title: gt("Failed to merge branch."),
+                description: toBranchActionErrorMessage(squashAtomCommandFailure(result)),
+              }),
+            );
+          });
+        }
+      })();
+    });
+  };
+
+  const createBranchFromBase = (nextBranchName: string) => {
+    const baseBranchName = createBranchBaseTarget;
+    setCreateBranchBaseTarget(null);
+    if (!baseBranchName) return;
+    createRef(nextBranchName, baseBranchName);
+  };
+
+  const renameBranch = (nextBranchName: string) => {
+    const branchName = renameBranchTarget;
+    setRenameBranchTarget(null);
+    if (!branchName || !branchCwd) return;
+    runBranchAction(async () => {
+      const result = await renameBranchMutation({
+        environmentId,
+        input: { cwd: branchCwd, refName: branchName, newRefName: nextBranchName },
+      });
+      if (result._tag === "Success" || isAtomCommandInterrupted(result)) return;
+      toastManager.add(
+        stackedThreadToast({
+          type: "error",
+          title: gt("Failed to rename branch."),
+          description: toBranchActionErrorMessage(squashAtomCommandFailure(result)),
+        }),
+      );
     });
   };
 
@@ -832,6 +1016,11 @@ export function BranchToolbarBranchSelector({
             ? "create-branch"
             : "branch"
       }
+      getSectionLabel={(item) => {
+        const ref = branchByName.get(item);
+        if (!ref) return null;
+        return ref.isRemote ? gt("Remote branches") : gt("Local branches");
+      }}
       originControl={
         isSelectingWorktreeBase
           ? { checked: startFromOrigin, onCheckedChange: onStartFromOriginChange }
@@ -916,6 +1105,29 @@ export function BranchToolbarBranchSelector({
           <ThreadDetailsIssueRows links={linkedIssues} threadRef={threadRef} />
         ) : null}
       </div>
+      {createBranchBaseTarget ? (
+        <BranchNameDialog
+          title={gt("Create branch")}
+          description={gt('Create a new branch from "{branch}".', {
+            branch: createBranchBaseTarget,
+          })}
+          submitLabel={gt("Create & checkout")}
+          onCancel={() => setCreateBranchBaseTarget(null)}
+          onSubmit={createBranchFromBase}
+        />
+      ) : null}
+      {renameBranchTarget ? (
+        <BranchNameDialog
+          title={gt("Rename branch")}
+          description={gt('Rename "{branch}" to a new branch name.', {
+            branch: renameBranchTarget,
+          })}
+          initialName={renameBranchTarget}
+          submitLabel={gt("Rename")}
+          onCancel={() => setRenameBranchTarget(null)}
+          onSubmit={renameBranch}
+        />
+      ) : null}
     </BranchPicker>
   );
 }

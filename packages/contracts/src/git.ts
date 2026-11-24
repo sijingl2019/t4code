@@ -188,6 +188,7 @@ export type VcsRemoveWorktreeInput = typeof VcsRemoveWorktreeInput.Type;
 export const VcsCreateRefInput = Schema.Struct({
   cwd: TrimmedNonEmptyStringSchema,
   refName: TrimmedNonEmptyStringSchema,
+  baseRef: Schema.optional(TrimmedNonEmptyStringSchema),
   switchRef: Schema.optional(Schema.Boolean),
 });
 export type VcsCreateRefInput = typeof VcsCreateRefInput.Type;
@@ -202,6 +203,30 @@ export const VcsSwitchRefInput = Schema.Struct({
   refName: TrimmedNonEmptyStringSchema,
 });
 export type VcsSwitchRefInput = typeof VcsSwitchRefInput.Type;
+
+export const VcsDeleteBranchInput = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+  refName: TrimmedNonEmptyStringSchema,
+});
+export type VcsDeleteBranchInput = typeof VcsDeleteBranchInput.Type;
+
+export const VcsRenameBranchInput = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+  refName: TrimmedNonEmptyStringSchema,
+  newRefName: TrimmedNonEmptyStringSchema,
+});
+export type VcsRenameBranchInput = typeof VcsRenameBranchInput.Type;
+
+export const VcsRenameBranchResult = Schema.Struct({
+  refName: TrimmedNonEmptyStringSchema,
+});
+export type VcsRenameBranchResult = typeof VcsRenameBranchResult.Type;
+
+export const VcsMergeBranchInput = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+  refName: TrimmedNonEmptyStringSchema,
+});
+export type VcsMergeBranchInput = typeof VcsMergeBranchInput.Type;
 
 export const VcsInitInput = Schema.Struct({
   cwd: TrimmedNonEmptyStringSchema,
@@ -363,6 +388,7 @@ export const GitCommandFailureReason = Schema.Literals([
   "branch_checked_out_in_worktree",
   "config_locked",
   "host_key_unverified",
+  "merge_conflict",
   "not_a_repository",
   "path_already_exists",
   "push_rejected_by_remote",

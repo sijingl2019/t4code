@@ -770,6 +770,8 @@ const sidebarMenuButtonVariants = cva(
       variant: {
         default: "font-medium text-sidebar-muted-foreground/80",
         outline: "bg-sidebar-control-surface ring-1 ring-sidebar-border",
+        plain:
+          "bg-transparent font-medium text-sidebar-muted-foreground/80 hover:bg-transparent hover:text-sidebar-foreground active:bg-transparent active:text-sidebar-foreground",
       },
     },
   },

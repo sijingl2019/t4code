@@ -6,6 +6,7 @@ import {
   buildMenuItems,
   type DefaultBranchConfirmableAction,
   hasUsableGitMenuContent,
+  navigateCommitMessageHistory,
   requiresDefaultBranchConfirmation,
   resolveChangesTotals,
   resolveDefaultBranchActionDialogCopy,
@@ -210,6 +211,51 @@ describe("when: ref has no upstream configured", () => {
   });
 });
 
+describe("when: the repository host is unknown", () => {
+  const unknownProvider = {
+    sourceControlProvider: {
+      kind: SourceControlProviderKind.make("unknown"),
+      name: "Unknown",
+      baseUrl: "",
+    },
+  };
+
+  it("keeps commit and push available but does not attempt a change request", () => {
+    const dirty = status({
+      ...unknownProvider,
+      hasUpstream: false,
+      hasWorkingTreeChanges: true,
+    });
+    assert.deepInclude(resolveQuickAction(dirty, false), {
+      label: "Commit & push",
+      disabled: false,
+      kind: "run_action",
+      action: "commit_push",
+    });
+
+    const ahead = status({ ...unknownProvider, hasUpstream: false, aheadCount: 2 });
+    assert.deepInclude(resolveQuickAction(ahead, false), {
+      label: "Push",
+      disabled: false,
+      kind: "run_action",
+      action: "push",
+    });
+
+    const prItem = buildMenuItems(ahead, false).find((item) => item.id === "pr");
+    assert.isDefined(prItem);
+    assert.isTrue(prItem.disabled);
+    assert.equal(
+      getMenuActionDisabledReason({
+        item: prItem,
+        gitStatus: ahead,
+        isBusy: false,
+        hasPrimaryRemote: true,
+      }),
+      "This repository's host does not support change requests.",
+    );
+  });
+});
+
 describe("when: the ref is on GitLab", () => {
   const gitLab = {
     sourceControlProvider: {
@@ -399,6 +445,117 @@ describe("resolveChangesTotals", () => {
         }),
       ),
       { insertions: 2, deletions: 0 },
+    );
+  });
+});
+
+describe("navigateCommitMessageHistory", () => {
+  const base = {
+    messages: ["newest", "older"],
+    shiftKey: false,
+    altKey: false,
+    ctrlKey: false,
+    metaKey: false,
+  } as const;
+
+  it("walks newest to oldest, preserves the draft, and restores it going down", () => {
+    const newest = navigateCommitMessageHistory({
+      ...base,
+      key: "ArrowUp",
+      value: "draft",
+      selectionStart: 0,
+      selectionEnd: 0,
+      index: -1,
+      draft: "",
+    });
+    const older = navigateCommitMessageHistory({
+      ...base,
+      key: "ArrowUp",
+      value: newest.value,
+      selectionStart: 0,
+      selectionEnd: 0,
+      index: newest.index,
+      draft: newest.draft,
+    });
+    const backToNewest = navigateCommitMessageHistory({
+      ...base,
+      key: "ArrowDown",
+      value: older.value,
+      selectionStart: older.value.length,
+      selectionEnd: older.value.length,
+      index: older.index,
+      draft: older.draft,
+    });
+    const restored = navigateCommitMessageHistory({
+      ...base,
+      key: "ArrowDown",
+      value: backToNewest.value,
+      selectionStart: backToNewest.value.length,
+      selectionEnd: backToNewest.value.length,
+      index: backToNewest.index,
+      draft: backToNewest.draft,
+    });
+
+    assert.deepEqual(newest, {
+      handled: true,
+      value: "newest",
+      index: 0,
+      draft: "draft",
+    });
+    assert.deepEqual(older, { handled: true, value: "older", index: 1, draft: "draft" });
+    assert.deepEqual(backToNewest, {
+      handled: true,
+      value: "newest",
+      index: 0,
+      draft: "draft",
+    });
+    assert.deepEqual(restored, { handled: true, value: "draft", index: -1, draft: "draft" });
+  });
+
+  it("leaves normal multiline caret movement and modified arrows alone", () => {
+    const unchanged = {
+      handled: false,
+      value: "first\nsecond",
+      index: -1,
+      draft: "",
+    };
+
+    assert.deepEqual(
+      navigateCommitMessageHistory({
+        ...base,
+        key: "ArrowUp",
+        value: unchanged.value,
+        selectionStart: 6,
+        selectionEnd: 6,
+        index: unchanged.index,
+        draft: unchanged.draft,
+      }),
+      unchanged,
+    );
+    assert.deepEqual(
+      navigateCommitMessageHistory({
+        ...base,
+        key: "ArrowDown",
+        value: unchanged.value,
+        selectionStart: 6,
+        selectionEnd: 6,
+        index: unchanged.index,
+        draft: unchanged.draft,
+      }),
+      unchanged,
+    );
+    assert.deepEqual(
+      navigateCommitMessageHistory({
+        ...base,
+        key: "ArrowUp",
+        value: unchanged.value,
+        selectionStart: 0,
+        selectionEnd: 0,
+        index: unchanged.index,
+        draft: unchanged.draft,
+        shiftKey: true,
+      }),
+      unchanged,
     );
   });
 });

@@ -214,6 +214,11 @@ export interface GitRenameBranchResult {
   branch: string;
 }
 
+export interface GitMergeBranchInput {
+  readonly cwd: string;
+  readonly refName: string;
+}
+
 export interface GitFetchRefInput {
   cwd: string;
   /** A ref on the primary remote, such as a host's change request head ref. */
@@ -465,6 +470,7 @@ export class GitVcsDriver extends Context.Service<
     readonly renameBranch: (
       input: GitRenameBranchInput,
     ) => Effect.Effect<GitRenameBranchResult, GitCommandError>;
+    readonly mergeBranch: (input: GitMergeBranchInput) => Effect.Effect<void, GitCommandError>;
     readonly createRef: (
       input: VcsCreateRefInput,
     ) => Effect.Effect<VcsCreateRefResult, GitCommandError>;

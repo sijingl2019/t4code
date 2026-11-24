@@ -64,7 +64,11 @@ export function WorktreeBaseBranchPicker({
     },
     messages,
   );
-  const branchByName = new Map(branches.refs.map((branch) => [branch.name, branch]));
+  const orderedRefs = [
+    ...branches.refs.filter((branch) => branch.isRemote !== true),
+    ...branches.refs.filter((branch) => branch.isRemote === true),
+  ];
+  const branchByName = new Map(orderedRefs.map((branch) => [branch.name, branch]));
   const items = [...branchByName.keys()];
   const hasNextPage = branches.data?.nextCursor != null;
   const statusText =
@@ -105,6 +109,11 @@ export function WorktreeBaseBranchPicker({
       statusText={statusText}
       originControl={{ checked: startFromOrigin, onCheckedChange: onStartFromOriginChange }}
       popupProps={{ align: "start", side: "bottom", className: "flex w-80 flex-col" }}
+      getSectionLabel={(name) => {
+        const branch = branchByName.get(name);
+        if (!branch) return null;
+        return branch.isRemote ? gt("Remote branches") : gt("Local branches");
+      }}
       renderItem={(name, index) => {
         const branch = branchByName.get(name);
         return branch ? (

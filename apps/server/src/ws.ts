@@ -3265,6 +3265,12 @@ export const layerWsRpc = (
           gitWorkflow
             .switchRef(input)
             .pipe(Effect.tap(() => vcsStatusBroadcaster.refreshAfterCheckout(input.cwd))),
+        [WS_METHODS.vcsDeleteBranch]: (input) =>
+          gitWorkflow.deleteBranch(input).pipe(Effect.tap(() => refreshGitStatus(input.cwd))),
+        [WS_METHODS.vcsRenameBranch]: (input) =>
+          gitWorkflow.renameBranchTo(input).pipe(Effect.tap(() => refreshGitStatus(input.cwd))),
+        [WS_METHODS.vcsMergeBranch]: (input) =>
+          gitWorkflow.mergeBranch(input).pipe(Effect.tap(() => refreshGitStatus(input.cwd))),
         [WS_METHODS.vcsInit]: (input) =>
           vcsProvisioning.initRepository(input).pipe(Effect.tap(() => refreshGitStatus(input.cwd))),
         [WS_METHODS.reviewGetBranchCommits]: (input) => review.getBranchCommits(input),

@@ -88,6 +88,44 @@ describe("git action copy", () => {
     expect(resolveQuickAction({ ...pushed, isDefaultRef: true }, false, true).disabled).toBe(true);
   });
 
+  it("uses plain push actions when the repository host is unknown", () => {
+    const unknownProvider = {
+      sourceControlProvider: {
+        kind: SourceControlProviderKind.make("unknown"),
+        name: "Unknown",
+        baseUrl: "",
+      },
+    };
+    const dirty = status({
+      ...unknownProvider,
+      hasUpstream: false,
+      hasWorkingTreeChanges: true,
+    });
+    expect(resolveQuickAction(dirty, false)).toMatchObject({
+      label: "Commit & push",
+      kind: "run_action",
+      action: "commit_push",
+    });
+
+    const ahead = status({ ...unknownProvider, hasUpstream: false, aheadCount: 2 });
+    expect(resolveQuickAction(ahead, false)).toMatchObject({
+      label: "Push",
+      kind: "run_action",
+      action: "push",
+    });
+
+    const prItem = buildMenuItems(ahead, false).find((item) => item.id === "pr");
+    expect(prItem?.disabled).toBe(true);
+    expect(
+      getGitActionDisabledReason({
+        item: prItem!,
+        gitStatus: ahead,
+        isBusy: false,
+        hasOriginRemote: true,
+      }),
+    ).toBe("This repository's host does not support change requests.");
+  });
+
   it("names the host's change request in the default-branch dialog", () => {
     const input = { action: "commit_push_pr", branchName: "main", includesCommit: true } as const;
     expect(

@@ -121,6 +121,73 @@ export function formatGitActionElapsed(
   return resolve(msg("{minutes}m {seconds}s", { minutes, seconds }));
 }
 
+export interface CommitMessageHistoryNavigation {
+  readonly handled: boolean;
+  readonly value: string;
+  readonly index: number;
+  readonly draft: string;
+}
+
+export function navigateCommitMessageHistory(input: {
+  readonly key: string;
+  readonly value: string;
+  readonly selectionStart: number;
+  readonly selectionEnd: number;
+  readonly messages: readonly string[];
+  readonly index: number;
+  readonly draft: string;
+  readonly shiftKey: boolean;
+  readonly altKey: boolean;
+  readonly ctrlKey: boolean;
+  readonly metaKey: boolean;
+}): CommitMessageHistoryNavigation {
+  const unchanged = {
+    handled: false,
+    value: input.value,
+    index: input.index,
+    draft: input.draft,
+  };
+  if (
+    input.messages.length === 0 ||
+    input.shiftKey ||
+    input.altKey ||
+    input.ctrlKey ||
+    input.metaKey
+  ) {
+    return unchanged;
+  }
+
+  if (input.key === "ArrowUp" && input.selectionStart === 0 && input.selectionEnd === 0) {
+    const index = input.index < 0 ? 0 : Math.min(input.index + 1, input.messages.length - 1);
+    return {
+      handled: true,
+      value: input.messages[index] ?? input.value,
+      index,
+      draft: input.index < 0 ? input.value : input.draft,
+    };
+  }
+
+  if (
+    input.key === "ArrowDown" &&
+    input.index >= 0 &&
+    input.selectionStart === input.value.length &&
+    input.selectionEnd === input.value.length
+  ) {
+    if (input.index === 0) {
+      return { handled: true, value: input.draft, index: -1, draft: input.draft };
+    }
+    const index = input.index - 1;
+    return {
+      handled: true,
+      value: input.messages[index] ?? input.value,
+      index,
+      draft: input.draft,
+    };
+  }
+
+  return unchanged;
+}
+
 export function buildMenuItems(
   gitStatus: VcsStatusResult | null,
   isBusy: boolean,
@@ -129,6 +196,7 @@ export function buildMenuItems(
 ): GitActionMenuItem[] {
   if (!gitStatus) return [];
   const terminology = changeRequestTerminologyFor(gitStatus);
+  const canUseChangeRequests = gitStatus.sourceControlProvider?.kind !== "unknown";
 
   const hasBranch = gitStatus.refName !== null;
   const hasChanges = gitStatus.hasWorkingTreeChanges;
@@ -144,6 +212,7 @@ export function buildMenuItems(
     gitStatus.aheadCount > 0 &&
     (gitStatus.hasUpstream || canPushWithoutUpstream);
   const canCreatePr =
+    canUseChangeRequests &&
     !isBusy &&
     hasBranch &&
     !hasOpenPr &&
@@ -250,6 +319,9 @@ export function getMenuActionDisabledReason(
       ),
     );
   }
+  if (gitStatus.sourceControlProvider?.kind === "unknown") {
+    return resolve(msg("This repository's host does not support change requests."));
+  }
   if (!gitStatus.hasUpstream && !hasPrimaryRemote) {
     return resolve(
       msg(
@@ -328,6 +400,7 @@ export function resolveQuickAction(
   const isBehind = gitStatus.behindCount > 0;
   const isDiverged = isAhead && isBehind;
   const terminology = changeRequestTerminologyFor(gitStatus);
+  const canUseChangeRequests = gitStatus.sourceControlProvider?.kind !== "unknown";
 
   if (!hasBranch) {
     return {
@@ -352,7 +425,7 @@ export function resolveQuickAction(
         action: "commit",
       };
     }
-    if (hasOpenPr || isDefaultRef) {
+    if (hasOpenPr || isDefaultRef || !canUseChangeRequests) {
       return {
         label: resolve(msg("Commit & push")),
         disabled: false,
@@ -396,7 +469,7 @@ export function resolveQuickAction(
         hint: resolve(msg("No local commits to push.")),
       };
     }
-    if (hasOpenPr || isDefaultRef) {
+    if (hasOpenPr || isDefaultRef || !canUseChangeRequests) {
       return {
         label: resolve(msg("Push", { $context: "verb, git action" })),
         disabled: false,
@@ -434,7 +507,7 @@ export function resolveQuickAction(
   }
 
   if (isAhead) {
-    if (hasOpenPr || isDefaultRef) {
+    if (hasOpenPr || isDefaultRef || !canUseChangeRequests) {
       return {
         label: resolve(msg("Push", { $context: "verb, git action" })),
         disabled: false,
@@ -464,12 +537,21 @@ export function resolveQuickAction(
   }
 
   if (hasDefaultBranchDelta && !isDefaultRef) {
+    const label = resolve(
+      msg("Create {term, select, mr {MR} cr {change request} other {PR}}", {
+        term: changeRequestTermKind(terminology),
+      }),
+    );
+    if (!canUseChangeRequests) {
+      return {
+        label,
+        disabled: true,
+        kind: "show_hint",
+        hint: resolve(msg("This repository's host does not support change requests.")),
+      };
+    }
     return {
-      label: resolve(
-        msg("Create {term, select, mr {MR} cr {change request} other {PR}}", {
-          term: changeRequestTermKind(terminology),
-        }),
-      ),
+      label,
       disabled: false,
       kind: "run_action",
       action: "create_pr",

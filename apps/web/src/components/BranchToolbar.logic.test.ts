@@ -4,6 +4,7 @@ import { dedupeRemoteBranchesWithLocalMatches } from "@t3tools/shared/git";
 import {
   deriveLocalBranchNameFromRemoteRef,
   isWorktreeChangeBlocked,
+  resolveBranchContextMenuActions,
   resolveBranchSelectionTarget,
   resolveDraftEnvModeAfterBranchChange,
   resolveEffectiveEnvMode,
@@ -430,5 +431,60 @@ describe("resolveConfirmedSelectedRef", () => {
     expect(resolveConfirmedSelectedRef(listed, refs === null ? null : { refs }).worktreePath).toBe(
       expected,
     );
+  });
+});
+
+describe("resolveBranchContextMenuActions", () => {
+  it("offers branch management only for a writable local branch that is not current", () => {
+    expect(
+      resolveBranchContextMenuActions({
+        isRemote: false,
+        isCurrent: false,
+        currentBranch: "main",
+        canWrite: true,
+        isPending: false,
+      }),
+    ).toEqual([
+      { id: "checkout", disabled: false },
+      { id: "create", disabled: false },
+      { id: "merge", disabled: false },
+      { id: "delete", disabled: false },
+      { id: "rename", disabled: false },
+    ]);
+  });
+
+  it("keeps remote branches copy-only and current branches create-only", () => {
+    const input = {
+      currentBranch: "main",
+      canWrite: true,
+      isPending: false,
+    };
+    expect(resolveBranchContextMenuActions({ ...input, isRemote: true, isCurrent: false })).toEqual(
+      [],
+    );
+    expect(resolveBranchContextMenuActions({ ...input, isRemote: false, isCurrent: true })).toEqual(
+      [{ id: "create", disabled: false }],
+    );
+  });
+
+  it("disables merge without a current branch and all writes without permission", () => {
+    expect(
+      resolveBranchContextMenuActions({
+        isRemote: false,
+        isCurrent: false,
+        currentBranch: null,
+        canWrite: true,
+        isPending: false,
+      }).find((action) => action.id === "merge")?.disabled,
+    ).toBe(true);
+    expect(
+      resolveBranchContextMenuActions({
+        isRemote: false,
+        isCurrent: false,
+        currentBranch: "main",
+        canWrite: false,
+        isPending: false,
+      }).every((action) => action.disabled),
+    ).toBe(true);
   });
 });

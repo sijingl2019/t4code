@@ -10,6 +10,7 @@ import type { ComposerHandleRef } from "../../composerHandleContext";
 import { selectThreadTerminalUiState } from "../../terminalUiStateStore";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { useThreadTerminalActions } from "../terminal/useThreadTerminalActions";
+import { rememberTerminalRelaunch } from "../terminal/terminalRelaunch";
 import { getTerminalLabel } from "@t3tools/shared/terminalLabelsCopy";
 import {
   AuthTerminalReadScope,
@@ -37,6 +38,11 @@ import { resolveDiscoveredServerUrl } from "../../browser/browserTargetResolver"
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { confirmTerminalClose } from "../../lib/terminalCloseConfirm";
 import { findReusableProjectScriptTerminal } from "../../lib/projectScriptTerminal";
+import {
+  findActionTerminal,
+  forgetActionTerminal,
+  rememberActionTerminal,
+} from "../../lib/actionTerminal";
 import { closingTerminalIds } from "../terminal/closingTerminals";
 import { type TerminalContextSelection } from "../../lib/terminalContext";
 import {
@@ -211,8 +217,8 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
       cwd?: string;
       env?: Record<string, string>;
       worktreePath?: string | null;
-      preferNewTerminal?: boolean;
       pairTerminal?: boolean;
+      reuseActionTerminal?: boolean;
       rememberAsLastInvoked?: boolean;
       shellHistory?: "preserve" | "suppress";
     },
@@ -225,24 +231,42 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
       });
     }
     const targetCwd = options?.cwd ?? gitCwd ?? activeProject.workspaceRoot;
+    const reuseActionTerminal =
+      options?.reuseActionTerminal ?? options?.rememberAsLastInvoked !== false;
+    const drawerTerminalIds = [
+      ...new Set([...terminalUiState.terminalIds, ...activeServerOrderedTerminalIds]),
+    ];
+    const pendingClosingTerminalIds = activeThreadRef ? closingTerminalIds(activeThreadRef) : [];
+    const canFindOwnedTerminal =
+      reuseActionTerminal &&
+      canReuseTerminal &&
+      readEnvironmentScope(environmentId, AuthTerminalReadScope);
+    const ownedTerminalId =
+      canFindOwnedTerminal && activeThreadRef
+        ? findActionTerminal({
+            target: activeThreadRef,
+            actionId: script.id,
+            drawerTerminalIds,
+            panelTerminalIds,
+            closingTerminalIds: pendingClosingTerminalIds,
+          })
+        : null;
     const reusableTerminalId =
-      options?.rememberAsLastInvoked !== false ||
+      ownedTerminalId ??
+      (reuseActionTerminal ||
       script.stopOnSettle ||
-      options?.preferNewTerminal ||
       !canReuseTerminal ||
       !readEnvironmentScope(environmentId, AuthTerminalReadScope)
         ? null
         : findReusableProjectScriptTerminal({
             // Server sessions cover drawer terminals this client has not opened yet, such as a
             // worktree setup shell; the helper drops the panel-owned ones.
-            drawerTerminalIds: [
-              ...new Set([...terminalUiState.terminalIds, ...activeServerOrderedTerminalIds]),
-            ],
+            drawerTerminalIds,
             activeTerminalId: terminalUiState.activeTerminalId,
             panelTerminalIds,
             runningTerminalIds,
-            closingTerminalIds: activeThreadRef ? closingTerminalIds(activeThreadRef) : [],
-          });
+            closingTerminalIds: pendingClosingTerminalIds,
+          }));
     const targetWorktreePath = options?.worktreePath ?? activeThread.worktreePath ?? null;
 
     setTerminalUiLaunchContext({
@@ -285,13 +309,18 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
         : { terminalId: reusableTerminalId }),
       location: { cwd: targetCwd, worktreePath: targetWorktreePath },
       stopOnSettle: script.stopOnSettle ?? false,
+      ...(ownedTerminalId ? { restart: true } : {}),
       ...(options?.env ? { extraEnv: options.env } : {}),
     });
     if (!launched) return;
     const targetTerminalId = launched.terminalId;
+    if (reuseActionTerminal) {
+      rememberActionTerminal(activeThreadRef, script.id, targetTerminalId);
+    }
     focusTerminal(activeThreadRef, targetTerminalId);
     const openResult = await launched.result;
     if (openResult._tag === "Failure") {
+      if (reuseActionTerminal) forgetActionTerminal(activeThreadRef, script.id);
       if (!isAtomCommandInterrupted(openResult)) {
         const error = squashAtomCommandFailure(openResult);
         setThreadError(
@@ -303,13 +332,19 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
       return;
     }
 
-    const writeResult = await terminalActions.writeToTerminal(
-      targetTerminalId,
+    const scriptInput =
       options?.shellHistory === "preserve"
         ? `${script.command}\r`
-        : projectScriptTerminalInput(script.command),
-    );
+        : projectScriptTerminalInput(script.command);
+    const writeResult = await terminalActions.writeToTerminal(targetTerminalId, scriptInput);
     if (!writeResult) return;
+    // t4code: Restart in the terminal sidebar runs this again.
+    rememberTerminalRelaunch(activeThreadRef, targetTerminalId, {
+      input: scriptInput,
+      location: { cwd: targetCwd, worktreePath: targetWorktreePath },
+      ...(options?.env ? { extraEnv: options.env } : {}),
+      stopOnSettle: script.stopOnSettle ?? false,
+    });
     if (writeResult._tag === "Failure") {
       if (!isAtomCommandInterrupted(writeResult)) {
         const error = squashAtomCommandFailure(writeResult);

@@ -7,13 +7,15 @@ import * as NodeFSP from "node:fs/promises";
 import * as NodePath from "node:path";
 
 import {
+  autoDevProjectMatches,
+  autoDevProjectName,
   CommandId,
   DEFAULT_PROVIDER_INTERACTION_MODE,
   hasAutoDevMarker,
-  ISSUE_AUTO_DEV_MARKER,
   issueTrackersOf,
   IssueTrackerError,
   LEGACY_ISSUE_TRACKER_ID,
+  stripAutoDevDirective,
   MessageId,
   ProjectId,
   type IssueBoard,
@@ -110,7 +112,7 @@ export function buildIssuePrompt(
 ): string {
   let description = issue.descriptionText.trim();
   if (options.auto && hasAutoDevMarker(description)) {
-    description = description.slice(ISSUE_AUTO_DEV_MARKER.length).trim();
+    description = stripAutoDevDirective(description);
   }
   const lines = [`[${issue.key}] ${issue.title}`, `链接: ${issue.url}`];
   if (issue.status) lines.push(`状态: ${issue.status}`);
@@ -158,23 +160,65 @@ export const autoDevPollDue = (
 ) => last === null || last.key !== key || now - last.at >= intervalMinutes * 60_000;
 
 const AUTO_MESSAGE_PREFIX = "ones-auto-message:";
+const AUTO_MESSAGE_V2_PREFIX = `${AUTO_MESSAGE_PREFIX}v2:`;
+const AUTO_COMMAND_PREFIX = "ones-auto:";
 
 /** Auto-dev id of an issue; the legacy tracker keeps the bare uuid so launched issues stay launched. */
 export const autoDevKey = (trackerId: string, issueUuid: string) =>
   trackerId === LEGACY_ISSUE_TRACKER_ID ? issueUuid : `${trackerId}/${issueUuid}`;
 
-/** The issue an auto-dev thread was launched for, read from its first message id. */
-export const autoDevIssueRef = (
-  firstMessageId: string | undefined,
-): { readonly trackerId: string; readonly issueUuid: string } | null => {
-  if (firstMessageId?.startsWith(AUTO_MESSAGE_PREFIX) !== true) return null;
-  const key = firstMessageId.slice(AUTO_MESSAGE_PREFIX.length);
+const parseAutoDevKey = (key: string): { trackerId: string; issueUuid: string } | null => {
   const slash = key.indexOf("/");
   const ref =
     slash === -1
       ? { trackerId: LEGACY_ISSUE_TRACKER_ID, issueUuid: key }
       : { trackerId: key.slice(0, slash), issueUuid: key.slice(slash + 1) };
   return ref.trackerId === "" || ref.issueUuid === "" ? null : ref;
+};
+
+/** A fresh id per project and launch attempt keeps deleted threads from replaying their receipts. */
+export const autoDevMessageId = (projectId: ProjectId, key: string, launch: number) =>
+  MessageId.make(
+    `${AUTO_MESSAGE_V2_PREFIX}${encodeURIComponent(projectId)}:${launch}:${encodeURIComponent(key)}`,
+  );
+
+export const autoDevCommandId = (projectId: ProjectId, key: string, launch: number) =>
+  CommandId.make(
+    `${AUTO_COMMAND_PREFIX}${encodeURIComponent(projectId)}:${launch}:${encodeURIComponent(key)}`,
+  );
+
+/** The issue an auto-dev thread was launched for, read from its first message id. */
+export const autoDevIssueRef = (
+  firstMessageId: string | undefined,
+): {
+  readonly trackerId: string;
+  readonly issueUuid: string;
+  readonly projectId?: ProjectId;
+  readonly launch?: number;
+} | null => {
+  if (firstMessageId?.startsWith(AUTO_MESSAGE_PREFIX) !== true) return null;
+  if (firstMessageId.startsWith(AUTO_MESSAGE_V2_PREFIX)) {
+    const [encodedProjectId, rawLaunch, encodedKey] = firstMessageId
+      .slice(AUTO_MESSAGE_V2_PREFIX.length)
+      .split(":");
+    const launch = Number(rawLaunch);
+    if (encodedProjectId === undefined || encodedKey === undefined) return null;
+    if (!Number.isSafeInteger(launch) || launch < 1) return null;
+    try {
+      const projectId = decodeURIComponent(encodedProjectId);
+      const ref = parseAutoDevKey(decodeURIComponent(encodedKey));
+      return ref === null || projectId.trim() === ""
+        ? null
+        : {
+            ...ref,
+            projectId: ProjectId.make(projectId),
+            launch,
+          };
+    } catch {
+      return null;
+    }
+  }
+  return parseAutoDevKey(firstMessageId.slice(AUTO_MESSAGE_PREFIX.length));
 };
 
 const safeFileName = (name: string) =>
@@ -354,25 +398,34 @@ export const layer = Layer.effect(
         Effect.withSpan("IssueService.catalog"),
       );
 
-    /** Auto-dev / board thread per `autoDevKey`, newest first wins. */
+    /** Active auto-dev / board thread per `autoDevKey`, plus the last launch number for retries. */
     const issueThreads = Effect.gen(function* () {
       // A range on the primary key; the prefix ends in ':' and ';' sorts right after it.
-      const rows = yield* sql<{ readonly threadId: ThreadId; readonly messageId: string }>`
-        SELECT m.thread_id AS threadId, m.message_id AS messageId
+      const rows = yield* sql<{
+        readonly threadId: ThreadId;
+        readonly messageId: string;
+        readonly deletedAt: string | null;
+      }>`
+        SELECT
+          m.thread_id AS threadId,
+          m.message_id AS messageId,
+          t.deleted_at AS deletedAt
         FROM orchestration_v2_projection_messages m
         JOIN orchestration_v2_projection_threads t ON t.thread_id = m.thread_id
         WHERE m.message_id >= ${AUTO_MESSAGE_PREFIX}
           AND m.message_id < ${`${AUTO_MESSAGE_PREFIX.slice(0, -1)};`}
-          AND t.deleted_at IS NULL
         ORDER BY t.created_at DESC
       `.pipe(Effect.mapError(fail));
-      const byKey = new Map<string, ThreadId>();
+      const threads = new Map<string, ThreadId>();
+      const launches = new Map<string, number>();
       for (const row of rows) {
         const ref = autoDevIssueRef(row.messageId);
         const key = ref && autoDevKey(ref.trackerId, ref.issueUuid);
-        if (key && !byKey.has(key)) byKey.set(key, row.threadId);
+        if (!key) continue;
+        launches.set(key, Math.max(launches.get(key) ?? 0, ref.launch ?? 1));
+        if (row.deletedAt === null && !threads.has(key)) threads.set(key, row.threadId);
       }
-      return byKey;
+      return { threads, launches };
     });
 
     const board: IssueService["Service"]["board"] = Effect.fn("IssueService.board")(function* () {
@@ -390,7 +443,7 @@ export const layer = Layer.effect(
         }
         boundProjects.set(key, list);
       }
-      const threads = yield* issueThreads;
+      const { threads } = yield* issueThreads;
       const rows: IssueBoardRow[] = [];
       const trackerProjectNames = new Set<string>();
       const statuses: Record<string, ReadonlyArray<IssueTrackerStatus>> = {};
@@ -464,9 +517,6 @@ export const layer = Layer.effect(
       );
 
     let lastPoll: { at: number; key: string } | null = null;
-    // Launch is idempotent per commandId; this only saves the repeat round trips.
-    const launched = new Set<string>();
-
     const downloadForAuto = (ones: IssueTrackerClient, issue: Pick<Issue, "key" | "attachments">) =>
       Effect.tryPromise({
         try: async () => {
@@ -501,21 +551,27 @@ export const layer = Layer.effect(
       }
       const tracker = yield* trackerFor(settings, listed.trackerId);
       const key = autoDevKey(tracker.id, listed.uuid);
-      const existing = (yield* issueThreads).get(key);
+      const { threads, launches } = yield* issueThreads;
+      const existing = threads.get(key);
       if (existing !== undefined) {
-        launched.add(key);
         return existing;
       }
+      const launch = (launches.get(key) ?? 0) + 1;
       const client = yield* clientFor(tracker);
       const loaded = yield* Effect.tryPromise({
         try: () => client.loadIssue(listed.uuid, listed.status),
         catch: fail,
       });
       const issue: Issue = { ...loaded, trackerId: tracker.id };
+      if (!autoDevProjectMatches(issue.descriptionText, project.title)) {
+        return yield* fail(
+          `Issue targets project ${autoDevProjectName(issue.descriptionText)}, not ${project.title}.`,
+        );
+      }
       const attachmentPaths = yield* downloadForAuto(client, issue);
       const result = yield* threadLaunch
         .launch({
-          commandId: CommandId.make(`ones-auto:${key}`),
+          commandId: autoDevCommandId(project.id, key, launch),
           projectId: project.id,
           title: `[${issue.key}] ${issue.title}`.slice(0, 200),
           modelSelection,
@@ -526,7 +582,7 @@ export const layer = Layer.effect(
               ? { type: "worktree", baseRef: "HEAD" }
               : { type: "root" },
           initialMessage: {
-            messageId: MessageId.make(`${AUTO_MESSAGE_PREFIX}${key}`),
+            messageId: autoDevMessageId(project.id, key, launch),
             text: buildIssuePrompt(issue, {
               auto: true,
               autoCommit: tracker.autoCommitProjectIds.includes(issue.trackerProjectId),
@@ -538,7 +594,6 @@ export const layer = Layer.effect(
           creationSource: "server",
         })
         .pipe(Effect.mapError(fail));
-      launched.add(key);
       yield* Effect.logInfo("ONES auto-dev thread launched", { issue: issue.key });
       return result.threadId;
     });
@@ -579,13 +634,14 @@ export const layer = Layer.effect(
       project: Project,
     ) {
       const issues = yield* issuesForProject(settings, project, true);
-      const threads = yield* issueThreads;
+      const { threads } = yield* issueThreads;
       let started = 0;
       for (const issue of issues) {
         const key = autoDevKey(issue.trackerId, issue.uuid);
-        if (launched.has(key) || threads.has(key)) continue;
+        if (threads.has(key)) continue;
         if (!hasAutoDevMarker(issue.descriptionText)) continue;
-        yield* launchAuto(settings, project, issue).pipe(
+        if (!autoDevProjectMatches(issue.descriptionText, project.title)) continue;
+        const threadId = yield* launchAuto(settings, project, issue).pipe(
           Effect.tap(() => Effect.sync(() => started++)),
           Effect.catch((error: IssueTrackerError) =>
             Effect.logWarning("ONES auto-dev launch failed", {
@@ -594,6 +650,7 @@ export const layer = Layer.effect(
             }),
           ),
         );
+        if (threadId !== undefined) threads.set(key, threadId);
       }
       return started;
     });

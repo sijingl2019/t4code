@@ -6,7 +6,14 @@ import {
 } from "@t3tools/contracts";
 import { useGT } from "gt-react";
 import { LanguagesIcon, QuoteIcon } from "lucide-react";
-import { use, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  use,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { createPortal } from "react-dom";
 import {
   captureAssistantTextSelection,
@@ -20,6 +27,7 @@ import {
 } from "~/lib/selectionActions";
 import { useStableCallback } from "~/hooks/useStableCallback";
 import { Button } from "../ui/button";
+import { SLIDING_HOVER_CAPSULE_TARGET, useSlidingHoverCapsule } from "../ui/sliding-hover-capsule";
 import { BackgroundThreadContext } from "./backgroundThread";
 import { TranslationPopover } from "./TranslationPopover";
 
@@ -38,7 +46,13 @@ export function AssistantSelectionToolbar({
     sourceAnchor: AssistantCitationSourceAnchor;
   } | null>(null);
   // t4code: the toolbar is a group (Cite, Translate) and Translate opens a result panel.
-  const toolbarRef = useRef<HTMLDivElement>(null);
+  const {
+    rootRef: toolbarRef,
+    capsuleRef: toolbarCapsuleRef,
+    fillRef: toolbarCapsuleFillRef,
+    hideCapsule: hideToolbarCapsule,
+    moveCapsule: moveToolbarCapsule,
+  } = useSlidingHoverCapsule<HTMLDivElement, HTMLSpanElement, HTMLSpanElement>();
   const [translation, setTranslation] = useState<{
     text: string;
     position: SelectionActionPoint;
@@ -55,7 +69,7 @@ export function AssistantSelectionToolbar({
     const rect = toolbar.getBoundingClientRect();
     toolbar.style.left = `${Math.max(8, Math.min(selection.position.x, window.innerWidth - rect.width - 8))}px`;
     toolbar.style.top = `${Math.max(8, Math.min(selection.position.y, window.innerHeight - rect.height - 8))}px`;
-  }, [selection]);
+  }, [selection, toolbarRef]);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- subscribes to document selectionchange and keydown to track text selections in the viewport
   useEffect(() => {
@@ -185,7 +199,7 @@ export function AssistantSelectionToolbar({
       actions.dispose();
       actionsRef.current = null;
     };
-  }, [backgroundThread, threadRef, viewport]);
+  }, [backgroundThread, threadRef, toolbarRef, viewport]);
 
   const translationPanel = translation ? (
     <TranslationPopover
@@ -211,6 +225,15 @@ export function AssistantSelectionToolbar({
     setTranslation({ text: selection.citation.text, position: selection.position });
     dismiss();
   };
+  const handleToolbarPointerOver = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!(event.target instanceof Element)) return;
+    const target = event.target.closest<HTMLElement>(`[${SLIDING_HOVER_CAPSULE_TARGET}]`);
+    if (target) {
+      moveToolbarCapsule(target);
+    } else {
+      hideToolbarCapsule();
+    }
+  };
   return (
     <>
       {translationPanel}
@@ -218,9 +241,11 @@ export function AssistantSelectionToolbar({
         <div
           ref={toolbarRef}
           role="toolbar"
-          className="surface-glass fixed z-50 grid max-w-[calc(100vw-1rem)] grid-cols-2 items-center rounded-full border border-border/60 text-sm shadow-sm"
+          className="surface-glass fixed z-50 isolate grid max-w-[calc(100vw-1rem)] grid-cols-2 items-center overflow-hidden rounded-full border-0 p-px text-sm shadow-sm ring-1 ring-border/60 ring-inset"
           style={{ left: selection.position.x, top: selection.position.y }}
           onPointerDown={(event) => event.preventDefault()}
+          onPointerLeave={hideToolbarCapsule}
+          onPointerOver={handleToolbarPointerOver}
           onKeyDown={(event) => {
             event.stopPropagation();
             if (event.key === "Escape" && !event.nativeEvent.isComposing) {
@@ -229,12 +254,24 @@ export function AssistantSelectionToolbar({
             }
           }}
         >
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute top-0 left-0 z-0 will-change-transform"
+            ref={toolbarCapsuleRef}
+            style={{ opacity: 0 }}
+          >
+            <span
+              className="sliding-hover-capsule block size-full rounded-full"
+              ref={toolbarCapsuleFillRef}
+            />
+          </span>
           <Button
             type="button"
             size="sm-pill"
-            variant="ghost"
-            className="w-full"
+            variant="plain"
+            className="relative z-10 w-full"
             disabled={tooLong}
+            {...{ [SLIDING_HOVER_CAPSULE_TARGET]: true }}
             aria-label={
               tooLong ? gt("Selection is too long to cite") : gt("Cite selection in composer")
             }
@@ -248,10 +285,11 @@ export function AssistantSelectionToolbar({
           <Button
             type="button"
             size="sm-pill"
-            variant="ghost"
-            className="w-full"
+            variant="plain"
+            className="relative z-10 w-full"
             aria-label={gt("Translate selection")}
             onClick={translate}
+            {...{ [SLIDING_HOVER_CAPSULE_TARGET]: true }}
           >
             <LanguagesIcon aria-hidden="true" className="size-3.5" />
             {gt("Translate")}

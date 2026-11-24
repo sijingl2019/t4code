@@ -4,7 +4,7 @@
  * auto-dev both write with the server's `buildIssuePrompt` (`[ONES-123] <title>` first, then a
  * `## 问题描述` section).
  */
-import { ISSUE_AUTO_DEV_MARKER } from "@t3tools/contracts";
+import { stripAutoDevDirective } from "@t3tools/contracts";
 
 export interface ThreadIssue {
   readonly key: string;
@@ -32,9 +32,7 @@ export function parseIssuePrompt(text: string): ThreadIssue | null {
           .slice(start + 1, end === -1 ? undefined : end)
           .join("\n")
           .trim();
-  if (description.startsWith(ISSUE_AUTO_DEV_MARKER)) {
-    description = description.slice(ISSUE_AUTO_DEV_MARKER.length).trim();
-  }
+  description = stripAutoDevDirective(description);
   if (description === "(无描述)") description = "";
   return { key: head[1]!, title: head[2]!.trim(), description };
 }

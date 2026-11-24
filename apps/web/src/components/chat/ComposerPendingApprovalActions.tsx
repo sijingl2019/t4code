@@ -3,13 +3,14 @@ import {
   type ProviderApprovalOption,
   type RuntimeRequestId,
 } from "@t3tools/contracts";
-import { msg, useGT, useMessages } from "gt-react";
+import { useGT, useMessages } from "gt-react";
 import { memo } from "react";
 import { EllipsisIcon, TriangleAlertIcon } from "lucide-react";
 import { Button, InlineButton } from "../ui/button";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { composerFloatingLayerProps } from "./composerEventScope";
+import { DEFAULT_APPROVAL_OPTIONS } from "./approvalOptions";
 
 interface ComposerPendingApprovalActionsProps {
   presentation?: "composer" | "inline";
@@ -23,22 +24,6 @@ interface ComposerPendingApprovalActionsProps {
     decision: ProviderApprovalDecision,
   ) => Promise<unknown>;
 }
-
-const DEFAULT_APPROVAL_OPTIONS = [
-  {
-    decision: "cancel",
-    label: msg("Cancel", { $context: "verb, response to an approval request" }),
-  },
-  {
-    decision: "decline",
-    label: msg("Decline", { $context: "verb, response to an approval request" }),
-  },
-  { decision: "acceptForSession", label: msg("Always allow this session") },
-  {
-    decision: "accept",
-    label: msg("Approve", { $context: "verb, response to an approval request" }),
-  },
-] satisfies ReadonlyArray<ProviderApprovalOption>;
 
 export const ComposerPendingApprovalActions = memo(function ComposerPendingApprovalActions({
   presentation = "composer",

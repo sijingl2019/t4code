@@ -594,6 +594,11 @@ it.layer(
       assert.equal(second.threadId, "thread-1");
       assert.equal(third.threadId, "thread-1");
       expect(ptyAdapter.spawnInputs).toHaveLength(1);
+
+      // t4code: restart replaces the running shell.
+      const restarted = yield* manager.open({ ...openInput(), restart: true });
+      expect(ptyAdapter.spawnInputs).toHaveLength(2);
+      assert.equal(restarted.status, "running");
     }),
   );
 

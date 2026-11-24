@@ -1,6 +1,61 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import { findActionTerminal, rememberActionTerminal } from "./actionTerminal";
 import { findReusableProjectScriptTerminal } from "./projectScriptTerminal";
+
+const target = { environmentId: "env-1", threadId: "thread-1" } as const;
+
+describe("findActionTerminal", () => {
+  it.each([
+    {
+      name: "reuses a running terminal owned by the action",
+      terminalId: "term-1",
+      drawerTerminalIds: ["term-1"],
+      panelTerminalIds: [] as string[],
+      closingTerminalIds: [] as string[],
+      expected: "term-1",
+    },
+    {
+      name: "does not reuse a panel-owned terminal",
+      terminalId: "term-1",
+      drawerTerminalIds: ["term-1"],
+      panelTerminalIds: ["term-1"],
+      closingTerminalIds: [] as string[],
+      expected: null,
+    },
+    {
+      name: "does not reuse a terminal whose close is still pending",
+      terminalId: "term-1",
+      drawerTerminalIds: ["term-1"],
+      panelTerminalIds: [] as string[],
+      closingTerminalIds: ["term-1"],
+      expected: null,
+    },
+    {
+      name: "does not reuse a terminal that is no longer in the drawer",
+      terminalId: "term-1",
+      drawerTerminalIds: [],
+      panelTerminalIds: [] as string[],
+      closingTerminalIds: [] as string[],
+      expected: null,
+    },
+  ])(
+    "$name",
+    ({ terminalId, drawerTerminalIds, panelTerminalIds, closingTerminalIds, expected }) => {
+      const actionId = `action-${terminalId}-${panelTerminalIds.length}-${closingTerminalIds.length}`;
+      rememberActionTerminal(target, actionId, terminalId);
+      expect(
+        findActionTerminal({
+          target,
+          actionId,
+          drawerTerminalIds,
+          panelTerminalIds: new Set(panelTerminalIds),
+          closingTerminalIds,
+        }),
+      ).toBe(expected);
+    },
+  );
+});
 
 describe("findReusableProjectScriptTerminal", () => {
   it.each([

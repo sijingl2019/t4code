@@ -1,7 +1,21 @@
-import { hasAutoDevMarker, type Issue } from "@t3tools/contracts";
+import {
+  autoDevProjectMatches,
+  autoDevProjectName,
+  hasAutoDevMarker,
+  ProjectId,
+  stripAutoDevDirective,
+  type Issue,
+} from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { autoDevIssueRef, autoDevKey, autoDevPollDue, buildIssuePrompt } from "./IssueService.ts";
+import {
+  autoDevCommandId,
+  autoDevIssueRef,
+  autoDevKey,
+  autoDevMessageId,
+  autoDevPollDue,
+  buildIssuePrompt,
+} from "./IssueService.ts";
 import {
   autoDevCommitMessage,
   issueCommitMessage,
@@ -39,6 +53,20 @@ describe("ONES issues", () => {
     expect(hasAutoDevMarker("")).toBe(false);
   });
 
+  it("routes auto-dev to an optional project named after the marker", () => {
+    expect(autoDevProjectName("#!t4code qiko-manager\nLogin fails")).toBe("qiko-manager");
+    expect(autoDevProjectName(" \r\n  #!t4code\tqiko-manager\r\nLogin fails")).toBe("qiko-manager");
+    expect(autoDevProjectName("#!t4code\nLogin fails")).toBeNull();
+    expect(autoDevProjectName("#!t4code do it")).toBeNull();
+    expect(autoDevProjectName("#!t4codeqiko-manager")).toBeNull();
+    expect(autoDevProjectName("please #!t4code qiko-manager")).toBeNull();
+    expect(stripAutoDevDirective("#!t4code qiko-manager\nLogin fails")).toBe("Login fails");
+    expect(stripAutoDevDirective("#!t4code do it")).toBe("do it");
+    expect(autoDevProjectMatches("#!t4code qiko-manager\nLogin fails", "Qiko-Manager")).toBe(true);
+    expect(autoDevProjectMatches("#!t4code qiko-manager\nLogin fails", "qiko-chat")).toBe(false);
+    expect(autoDevProjectMatches("#!t4code\nLogin fails", "qiko-chat")).toBe(true);
+  });
+
   it("recognises auto-dev threads by their first message id", () => {
     expect(autoDevIssueRef("ones-auto-message:6wpqXE1b")).toEqual({
       trackerId: "ones",
@@ -53,6 +81,31 @@ describe("ONES issues", () => {
     expect(autoDevIssueRef("ones-auto-message:t2/")).toBeNull();
     expect(autoDevIssueRef("msg-123")).toBeNull();
     expect(autoDevIssueRef(undefined)).toBeNull();
+  });
+
+  it("scopes auto-dev message ids to the project and launch attempt", () => {
+    const chat = ProjectId.make("qiko-chat");
+    const manager = ProjectId.make("qiko-manager");
+    const first = autoDevMessageId(chat, "u1", 1);
+    const retry = autoDevMessageId(manager, "u1", 2);
+    const sameProjectRetry = autoDevMessageId(chat, "u1", 2);
+
+    expect(first).not.toBe(retry);
+    expect(first).not.toBe(sameProjectRetry);
+    expect(autoDevCommandId(chat, "u1", 1)).not.toBe(autoDevCommandId(manager, "u1", 2));
+    expect(autoDevCommandId(chat, "u1", 1)).not.toBe(autoDevCommandId(chat, "u1", 2));
+    expect(autoDevIssueRef(first)).toEqual({
+      trackerId: "ones",
+      issueUuid: "u1",
+      projectId: chat,
+      launch: 1,
+    });
+    expect(autoDevIssueRef(retry)).toEqual({
+      trackerId: "ones",
+      issueUuid: "u1",
+      projectId: manager,
+      launch: 2,
+    });
   });
 
   it("posts summaries as literal text in ONES comment HTML", () => {
@@ -71,6 +124,14 @@ describe("ONES issues", () => {
     expect(prompt).toContain("Ann: repro on 17.2");
     expect(prompt).not.toContain("系统自动完成");
     expect(buildIssuePrompt(issue, { auto: true, autoCommit: true })).toContain("「#7 Fix login」");
+  });
+
+  it("builds a targeted auto prompt without the project directive", () => {
+    const targeted = { ...issue, descriptionText: "#!t4code qiko-manager\nLogin fails" };
+    const prompt = buildIssuePrompt(targeted, { auto: true });
+    expect(prompt).toContain("Login fails");
+    expect(prompt).not.toContain("#!t4code");
+    expect(prompt).not.toContain("qiko-manager");
   });
 
   it("builds a manual prompt without the auto constraints", () => {

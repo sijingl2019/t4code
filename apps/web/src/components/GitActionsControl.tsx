@@ -26,7 +26,15 @@ import type {
 } from "@t3tools/contracts";
 import { useNavigate } from "@tanstack/react-router";
 import * as Option from "effect/Option";
-import { memo, useEffect, useEffectEvent, useId, useRef, useState } from "react";
+import {
+  memo,
+  useEffect,
+  useEffectEvent,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import { useDeadlinePassed } from "../hooks/useDeadline";
 import { useNowSecond } from "../hooks/useNowSecond";
 import { flushSync } from "react-dom";
@@ -65,6 +73,7 @@ import {
   resolveGitActionResultToastTiming,
   resolveLiveThreadBranchUpdate,
   getMenuActionDisabledReason,
+  navigateCommitMessageHistory,
   resolveThreadBranchMetadataPatch,
   resolveQuickAction,
   resolveThreadBranchUpdate,
@@ -1016,6 +1025,8 @@ function CheckoutGitActionsControl({
   const setDraftThreadContext = useComposerDraftStore((store) => store.setDraftThreadContext);
   const [isCommitDialogOpen, setIsCommitDialogOpen] = useState(false);
   const [dialogCommitMessage, setDialogCommitMessage] = useState("");
+  const [commitMessageHistoryIndex, setCommitMessageHistoryIndex] = useState(-1);
+  const [commitMessageHistoryDraft, setCommitMessageHistoryDraft] = useState("");
   const [excludedFiles, setExcludedFiles] = useState<ReadonlySet<string>>(new Set());
   const [isEditingFiles, setIsEditingFiles] = useState(false);
   const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
@@ -1102,6 +1113,17 @@ function CheckoutGitActionsControl({
   const ignoreWhitespace =
     useDiffPanelSessionStore((state) => state.ignoreWhitespace) ?? ignoreWhitespaceSetting;
   const { canReadFiles } = useFilesystemReadAccess(activeEnvironmentId, messages);
+  const commitMessageHistoryQuery = useEnvironmentQuery(
+    isCommitDialogOpen && activeEnvironmentId !== null && gitCwd !== null
+      ? reviewEnvironment.branchCommits({
+          environmentId: activeEnvironmentId,
+          input: { cwd: gitCwd, scope: "head" },
+        })
+      : null,
+    messages,
+  );
+  const commitMessageHistory =
+    commitMessageHistoryQuery.data?.commits.map((commit) => commit.message ?? commit.subject) ?? [];
   // Same input as the Diff panel's branch query, so both read one cached result. Status
   // totals join the revision because edits, pulls and resets outside a turn leave the mutation
   // id as is.
@@ -1382,12 +1404,40 @@ function CheckoutGitActionsControl({
     setDialogCommitMessage((current) => current || commitMessage);
   };
 
+  const handleCommitMessageKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    const navigation = navigateCommitMessageHistory({
+      key: event.key,
+      value: dialogCommitMessage,
+      selectionStart: event.currentTarget.selectionStart,
+      selectionEnd: event.currentTarget.selectionEnd,
+      messages: commitMessageHistory,
+      index: commitMessageHistoryIndex,
+      draft: commitMessageHistoryDraft,
+      shiftKey: event.shiftKey,
+      altKey: event.altKey,
+      ctrlKey: event.ctrlKey,
+      metaKey: event.metaKey,
+    });
+    if (!navigation.handled) return;
+
+    event.preventDefault();
+    const textarea = event.currentTarget;
+    flushSync(() => {
+      setDialogCommitMessage(navigation.value);
+      setCommitMessageHistoryIndex(navigation.index);
+      setCommitMessageHistoryDraft(navigation.draft);
+    });
+    textarea.setSelectionRange(navigation.value.length, navigation.value.length);
+  };
+
   const runDialogActionOnNewBranch = () => {
     if (!isCommitDialogOpen) return;
     const commitMessage = dialogCommitMessage.trim();
 
     setIsCommitDialogOpen(false);
     setDialogCommitMessage("");
+    setCommitMessageHistoryIndex(-1);
+    setCommitMessageHistoryDraft("");
     setExcludedFiles(new Set());
     setIsEditingFiles(false);
 
@@ -1472,6 +1522,8 @@ function CheckoutGitActionsControl({
     }
     setExcludedFiles(new Set());
     setIsEditingFiles(false);
+    setCommitMessageHistoryIndex(-1);
+    setCommitMessageHistoryDraft("");
     setDialogCommitMessage((current) => current || (defaultCommitMessage ?? "")); // t4code
     setIsCommitDialogOpen(true);
   };
@@ -1481,6 +1533,8 @@ function CheckoutGitActionsControl({
     const commitMessage = dialogCommitMessage.trim();
     setIsCommitDialogOpen(false);
     setDialogCommitMessage("");
+    setCommitMessageHistoryIndex(-1);
+    setCommitMessageHistoryDraft("");
     setExcludedFiles(new Set());
     setIsEditingFiles(false);
     void runGitActionWithToast({
@@ -1859,6 +1913,8 @@ function CheckoutGitActionsControl({
           if (!open) {
             setIsCommitDialogOpen(false);
             setDialogCommitMessage("");
+            setCommitMessageHistoryIndex(-1);
+            setCommitMessageHistoryDraft("");
             setExcludedFiles(new Set());
             setIsEditingFiles(false);
           }
@@ -2014,7 +2070,13 @@ function CheckoutGitActionsControl({
               </p>
               <Textarea
                 value={dialogCommitMessage}
-                onChange={(event) => setDialogCommitMessage(event.target.value)}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setDialogCommitMessage(value);
+                  setCommitMessageHistoryIndex(-1);
+                  setCommitMessageHistoryDraft(value);
+                }}
+                onKeyDown={handleCommitMessageKeyDown}
                 placeholder={gt("Leave empty to auto-generate")}
                 size="sm"
               />
@@ -2027,6 +2089,8 @@ function CheckoutGitActionsControl({
               onClick={() => {
                 setIsCommitDialogOpen(false);
                 setDialogCommitMessage("");
+                setCommitMessageHistoryIndex(-1);
+                setCommitMessageHistoryDraft("");
                 setExcludedFiles(new Set());
                 setIsEditingFiles(false);
               }}

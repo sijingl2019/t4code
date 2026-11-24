@@ -5,7 +5,13 @@ import { page, userEvent } from "vite-plus/test/browser";
 const mocks = vi.hoisted(() => ({ resolvedQueries: new Set<string>() }));
 
 const REFS: VcsRef[] = ["develop", "main", "origin/main", "origin/feature/main-nav"].map(
-  (name) => ({ name, current: false, isDefault: false, worktreePath: null }),
+  (name) => ({
+    name,
+    current: false,
+    isDefault: false,
+    isRemote: name.startsWith("origin/"),
+    worktreePath: null,
+  }),
 );
 
 // Like the real hook, a query has no refs until the server answers it.
@@ -38,6 +44,28 @@ function setup() {
 }
 
 describe("WorktreeBaseBranchPicker", () => {
+  it("groups local and remote branches", async () => {
+    setup();
+    await using screen = await render(
+      <WorktreeBaseBranchPicker
+        environmentId={EnvironmentId.make("primary")}
+        cwd="/repo"
+        value=""
+        onValueChange={() => {}}
+        startFromOrigin={false}
+        onStartFromOriginChange={() => {}}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("combobox"));
+
+    await expect.element(page.getByText("Local branches")).toBeVisible();
+    await expect.element(page.getByText("Remote branches")).toBeVisible();
+    await expect
+      .element(page.getByRole("option", { name: "main", exact: true }))
+      .toHaveAttribute("data-highlighted");
+  });
+
   it.each([
     { keys: "{Enter}", selected: "main" },
     { keys: "{ArrowDown}{Enter}", selected: "origin/main" },

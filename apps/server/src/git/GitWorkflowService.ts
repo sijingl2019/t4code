@@ -11,6 +11,10 @@ import {
   type VcsCreateRefInput,
   type VcsCreateRefResult,
   type VcsCreateWorktreeInput,
+  type VcsDeleteBranchInput,
+  type VcsRenameBranchInput,
+  type VcsRenameBranchResult,
+  type VcsMergeBranchInput,
   type VcsCreateWorktreeResult,
   type VcsListRefsInput,
   type VcsListRefsResult,
@@ -136,6 +140,11 @@ export class GitWorkflowService extends Context.Service<
     readonly deleteLocalBranch: (
       input: GitVcsDriver.GitDeleteLocalBranchInput,
     ) => Effect.Effect<void, GitCommandError>;
+    readonly deleteBranch: (input: VcsDeleteBranchInput) => Effect.Effect<void, GitCommandError>;
+    readonly renameBranchTo: (
+      input: VcsRenameBranchInput,
+    ) => Effect.Effect<VcsRenameBranchResult, GitCommandError>;
+    readonly mergeBranch: (input: VcsMergeBranchInput) => Effect.Effect<void, GitCommandError>;
     readonly createRef: (
       input: VcsCreateRefInput,
     ) => Effect.Effect<VcsCreateRefResult, GitCommandError>;
@@ -526,6 +535,36 @@ export const make = Effect.gen(function* () {
     deleteLocalBranch: Effect.fn("GitWorkflowService.deleteLocalBranch")(function (input) {
       return ensureGitCommand("GitWorkflowService.deleteLocalBranch", input.cwd).pipe(
         Effect.andThen(git.deleteLocalBranch(input)),
+      );
+    }),
+    deleteBranch: Effect.fn("GitWorkflowService.deleteBranch")(function (input) {
+      return ensureGitCommand("GitWorkflowService.deleteBranch", input.cwd).pipe(
+        Effect.andThen(
+          git.deleteLocalBranch({
+            cwd: input.cwd,
+            refName: input.refName,
+          }),
+        ),
+      );
+    }),
+    renameBranchTo: Effect.fn("GitWorkflowService.renameBranchTo")(function (input) {
+      return ensureGitCommand("GitWorkflowService.renameBranchTo", input.cwd).pipe(
+        Effect.andThen(
+          git.renameBranch({
+            cwd: input.cwd,
+            oldBranch: input.refName,
+            newBranch: input.newRefName,
+            exactName: true,
+          }),
+        ),
+        Effect.map((result) => ({ refName: result.branch })),
+      );
+    }),
+    mergeBranch: Effect.fn("GitWorkflowService.mergeBranch")(function (input) {
+      return ensureGitCommand("GitWorkflowService.mergeBranch", input.cwd).pipe(
+        Effect.flatMap((handle) =>
+          withCheckoutLease(handle.repository.rootPath, git.mergeBranch(input)),
+        ),
       );
     }),
     createRef: Effect.fn("GitWorkflowService.createRef")(function (input) {

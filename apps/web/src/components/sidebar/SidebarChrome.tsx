@@ -5,9 +5,8 @@ import {
   ListTodoIcon,
   SettingsIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
 import { T, useGT } from "gt-react";
-import { memo } from "react";
+import { memo, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 
 import { useAtomValue } from "@effect/atom-react";
@@ -41,6 +40,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "../ui/sidebar";
+import { SLIDING_HOVER_CAPSULE_TARGET, useSlidingHoverCapsule } from "../ui/sliding-hover-capsule";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { readPullRequestListPreferences } from "../pullRequest/pullRequestListPreferences";
 import { readIssueListPreferences } from "../issue/issueListPreferences";
@@ -221,11 +221,17 @@ function SidebarUtilityItem({
   onClick: () => void;
 }) {
   return (
-    <SidebarMenuItem className="shrink-0">
+    <SidebarMenuItem className="relative z-10 shrink-0">
       <Tooltip>
         <TooltipTrigger
           render={
-            <SidebarMenuButton aria-label={label} onClick={onClick} size="icon">
+            <SidebarMenuButton
+              aria-label={label}
+              {...{ [SLIDING_HOVER_CAPSULE_TARGET]: true }}
+              onClick={onClick}
+              size="icon"
+              variant="plain"
+            >
               {icon}
             </SidebarMenuButton>
           }
@@ -237,6 +243,13 @@ function SidebarUtilityItem({
 }
 
 const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
+  const {
+    rootRef: menuRef,
+    capsuleRef,
+    fillRef: capsuleFillRef,
+    hideCapsule: hideUtilityCapsule,
+    moveCapsule: moveUtilityCapsule,
+  } = useSlidingHoverCapsule<HTMLUListElement, HTMLLIElement, HTMLSpanElement>();
   const navigate = useNavigate();
   const navigateToMainApp = useNavigateToMainApp();
   const gt = useGT();
@@ -285,8 +298,31 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
     void navigateToMainApp();
   };
 
+  const handleUtilityPointerOver = (event: ReactPointerEvent<HTMLUListElement>) => {
+    if (!(event.target instanceof Element)) return;
+    const target = event.target.closest<HTMLElement>(`[${SLIDING_HOVER_CAPSULE_TARGET}]`);
+    if (target) {
+      moveUtilityCapsule(target);
+    } else if (event.target.closest('[data-sidebar="menu-item"]')) {
+      hideUtilityCapsule();
+    }
+  };
+
   return (
-    <SidebarMenu className="flex-row items-center">
+    <SidebarMenu
+      className="relative isolate flex-row items-center"
+      onPointerLeave={hideUtilityCapsule}
+      onPointerOver={handleUtilityPointerOver}
+      ref={menuRef}
+    >
+      <li
+        aria-hidden="true"
+        className="pointer-events-none absolute top-0 left-0 z-0 m-0 will-change-transform"
+        ref={capsuleRef}
+        style={{ opacity: 0 }}
+      >
+        <span className="sliding-hover-capsule block size-full rounded-full" ref={capsuleFillRef} />
+      </li>
       {isOnUtilityPage ? (
         <SidebarMenuItem className="min-w-0 flex-1">
           <SidebarMenuButton onClick={handleBackClick}>

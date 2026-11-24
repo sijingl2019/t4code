@@ -3178,6 +3178,35 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
       }),
     );
 
+    it.effect("reads commit-message history from HEAD across the branch point", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        const { initialBranch } = yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        yield* git(cwd, ["checkout", "-b", "feature/commit-history"]);
+        yield* writeTextFile(cwd, "second.txt", "second\n");
+        yield* git(cwd, ["add", "second.txt"]);
+        yield* git(cwd, ["commit", "-m", "second commit"]);
+        yield* writeTextFile(cwd, "third.txt", "third\n");
+        yield* git(cwd, ["add", "third.txt"]);
+        yield* git(cwd, ["commit", "-m", "third commit", "-m", "history body"]);
+
+        const branch = yield* driver.getReviewBranchCommits({ cwd, baseRef: initialBranch });
+        assert.deepStrictEqual(
+          branch.commits.map((commit) => commit.subject),
+          ["third commit", "second commit"],
+        );
+
+        const history = yield* driver.getReviewBranchCommits({ cwd, scope: "head" });
+        assert.deepStrictEqual(
+          history.commits.map((commit) => commit.subject),
+          ["third commit", "second commit", "initial commit"],
+        );
+        assert.strictEqual(history.commits[0]?.message, "third commit\n\nhistory body");
+        assert.isFalse(Object.hasOwn(branch.commits[0]!, "message"));
+      }),
+    );
+
     it.effect("previews one selected commit, a merge against its first parent", () =>
       Effect.gen(function* () {
         const cwd = yield* makeTmpDir();
@@ -6034,6 +6063,85 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
         const remoteDefault = refs.refs.find((ref) => ref.name === `origin/${initialBranch}`);
         assert.equal(remoteDefault?.isRemote, true);
         assert.equal(remoteDefault?.isDefault, true);
+      }),
+    );
+
+    it.effect("merges a local branch into the current checkout", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        const { initialBranch } = yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        yield* git(cwd, ["checkout", "-b", "feature"]);
+        yield* writeTextFile(cwd, "feature.txt", "merged\n");
+        yield* git(cwd, ["add", "feature.txt"]);
+        yield* git(cwd, [
+          "-c",
+          "user.email=t@t",
+          "-c",
+          "user.name=t",
+          "commit",
+          "-m",
+          "feature work",
+        ]);
+        yield* git(cwd, ["checkout", initialBranch]);
+
+        yield* driver.mergeBranch({ cwd, refName: "feature" });
+
+        assert.equal(yield* git(cwd, ["branch", "--show-current"]), initialBranch);
+        const fileSystem = yield* FileSystem.FileSystem;
+        const pathService = yield* Path.Path;
+        assert.equal(
+          yield* fileSystem.readFileString(pathService.join(cwd, "feature.txt")).pipe(Effect.orDie),
+          "merged\n",
+        );
+      }),
+    );
+
+    it.effect("reports merge conflicts without committing the merge", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        const { initialBranch } = yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        yield* writeTextFile(cwd, "conflict.txt", "base\n");
+        yield* git(cwd, ["add", "conflict.txt"]);
+        yield* git(cwd, ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-m", "base"]);
+        yield* git(cwd, ["checkout", "-b", "feature"]);
+        yield* writeTextFile(cwd, "conflict.txt", "feature\n");
+        yield* git(cwd, ["commit", "--all", "-m", "feature"]);
+        yield* git(cwd, ["checkout", initialBranch]);
+        yield* writeTextFile(cwd, "conflict.txt", "main\n");
+        yield* git(cwd, ["commit", "--all", "-m", "main"]);
+
+        const result = yield* driver.mergeBranch({ cwd, refName: "feature" }).pipe(Effect.result);
+
+        assert.isTrue(Result.isFailure(result));
+        if (Result.isFailure(result)) assert.equal(result.failure.reason, "merge_conflict");
+        assert.equal(yield* git(cwd, ["branch", "--show-current"]), initialBranch);
+      }),
+    );
+
+    it.effect("creates and checks out a branch from an explicit base ref", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        const { initialBranch } = yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        yield* git(cwd, ["checkout", "-b", "base"]);
+        yield* writeTextFile(cwd, "base.txt", "base\n");
+        yield* git(cwd, ["add", "base.txt"]);
+        yield* git(cwd, ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-m", "base work"]);
+        const baseCommit = yield* git(cwd, ["rev-parse", "HEAD"]);
+        yield* git(cwd, ["checkout", initialBranch]);
+
+        const created = yield* driver.createRef({
+          cwd,
+          refName: "feature/from-base",
+          baseRef: "base",
+          switchRef: true,
+        });
+
+        assert.equal(created.refName, "feature/from-base");
+        assert.equal(yield* git(cwd, ["branch", "--show-current"]), "feature/from-base");
+        assert.equal(yield* git(cwd, ["rev-parse", "HEAD"]), baseCommit);
       }),
     );
 

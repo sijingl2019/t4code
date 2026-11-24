@@ -582,7 +582,7 @@ const makeTestPictureInPictureWindow = (loadURL: () => Promise<void> = async () 
     setAlwaysOnTop: vi.fn(),
     setVisibleOnAllWorkspaces: vi.fn(),
     setAspectRatio: vi.fn(),
-    getContentSize: vi.fn(() => [480, 320]),
+    getContentSize: vi.fn(() => [960, 640]),
     setContentSize: vi.fn(),
     loadURL: vi.fn(loadURL),
     showInactive: vi.fn(() => {
@@ -3193,6 +3193,14 @@ describe("PreviewManager", () => {
           yield* TestClock.adjust(1_000);
           expect(pictureInPictureWindow.showInactive).toHaveBeenCalledOnce();
           yield* Fiber.join(open);
+          expect(browserWindowConstructor).toHaveBeenCalledWith(
+            expect.objectContaining({
+              width: 960,
+              height: 640,
+              maximizable: false,
+              minimizable: false,
+            }),
+          );
 
           expect(send).not.toHaveBeenCalled();
           yield* TestClock.adjust(500);

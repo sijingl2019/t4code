@@ -18,6 +18,7 @@ import { useKnownTerminalSessions } from "../../state/terminalSessions";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../../terminalUiStateStore";
 import { closingTerminalIds, holdTerminalIdWhileClosing } from "./closingTerminals";
+import { forgetTerminalRelaunch } from "./terminalRelaunch";
 
 /** Where a new terminal starts. Omitted fields fall back to the thread's project and worktree. */
 export interface TerminalLaunchLocation {
@@ -91,6 +92,7 @@ export function useThreadTerminalActions(threadRef: ScopedThreadRef | null) {
     readonly extraEnv?: Record<string, string>;
     readonly stopOnSettle?: boolean;
     readonly size?: { readonly cols: number; readonly rows: number };
+    readonly restart?: boolean; // t4code
   }) => {
     if (!threadRef || !canWrite() || !project) return null;
     const location = input.location ?? defaultLaunchLocation();
@@ -111,6 +113,7 @@ export function useThreadTerminalActions(threadRef: ScopedThreadRef | null) {
         }),
         ...input.size,
         ...(input.stopOnSettle !== undefined ? { stopOnSettle: input.stopOnSettle } : {}),
+        ...(input.restart ? { restart: true } : {}), // t4code
       },
     });
     return { terminalId, result };
@@ -121,6 +124,7 @@ export function useThreadTerminalActions(threadRef: ScopedThreadRef | null) {
     if (!target || !readEnvironmentScope(target.environmentId, AuthTerminalOperateScope)) return;
     const environmentId = target.environmentId;
     const threadId = target.threadId;
+    forgetTerminalRelaunch(target, terminalId); // t4code
     void holdTerminalIdWhileClosing(target, terminalId, async () => {
       const closeResult = await closeTerminalCommand({
         environmentId,

@@ -24,6 +24,8 @@ export type ReviewDiffPreviewInput = typeof ReviewDiffPreviewInput.Type;
 export const ReviewBranchCommitsInput = Schema.Struct({
   cwd: TrimmedNonEmptyString,
   baseRef: Schema.optional(TrimmedNonEmptyString),
+  // `head` includes history before the branch point, for commit-message recall.
+  scope: Schema.optional(Schema.Literals(["branch", "head"])),
 });
 export type ReviewBranchCommitsInput = typeof ReviewBranchCommitsInput.Type;
 
@@ -32,6 +34,7 @@ export const ReviewBranchCommitsResult = Schema.Struct({
     Schema.Struct({
       sha: Schema.String,
       subject: Schema.String,
+      message: Schema.optional(Schema.String),
       committedAt: Schema.String,
     }),
   ),

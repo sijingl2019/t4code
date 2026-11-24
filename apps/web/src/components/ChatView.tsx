@@ -127,6 +127,7 @@ import {
 import { formatModelSlugName, resolveSelectableModel } from "@t3tools/shared/model";
 import { projectScriptCwd, resolveProjectScripts } from "@t3tools/shared/projectScripts";
 import { runVscodeLaunchScript } from "~/vscode/vscodeLaunchScripts"; // t4code
+import { actionTerminalId } from "~/lib/actionTerminal"; // t4code
 import { useVscodeLaunchRunner } from "~/vscode/VscodeInterpreterPicker"; // t4code
 import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import { orchestrationV2WorktreePending } from "@t3tools/shared/orchestrationV2ThreadError";
@@ -1987,6 +1988,11 @@ export default function ChatView(props: ChatViewProps) {
     cwd: gitCwd,
     run: (script) => runVscodeLaunchScript(runProjectScriptStable, script),
   }); // t4code
+  // t4code: an Action whose terminal still runs a process shows Restart in the Actions menu.
+  const isActionRunning = (actionId: string) => {
+    const terminalId = activeThreadRef ? actionTerminalId(activeThreadRef, actionId) : null;
+    return terminalId !== null && runningTerminalIds.includes(terminalId);
+  };
   const {
     saveProjectScript: saveProjectScriptStable,
     updateProjectScript: updateProjectScriptStable,
@@ -4034,6 +4040,7 @@ export default function ChatView(props: ChatViewProps) {
                     : {})}
                   onRunProjectScript={runProjectScriptStable}
                   onRunLaunchScript={vscodeLaunchRunner.runScript} // t4code
+                  isActionRunning={isActionRunning} // t4code
                   onAddProjectScript={saveProjectScriptStable}
                   onUpdateProjectScript={updateProjectScriptStable}
                   onDeleteProjectScript={deleteProjectScriptStable}

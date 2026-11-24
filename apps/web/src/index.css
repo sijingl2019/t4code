@@ -362,6 +362,14 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   }
 }
 
+@utility sliding-hover-capsule {
+  background: rgb(0 0 0 / 10%);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--contrast-foreground) 13%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 24%),
+    0 1px 2px rgb(0 0 0 / 10%);
+}
+
 @utility surface-glass {
   background: color-mix(in srgb, var(--background) var(--glass-opacity), transparent);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));

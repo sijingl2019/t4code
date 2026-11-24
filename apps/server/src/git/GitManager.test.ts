@@ -3627,6 +3627,39 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
     }),
   );
 
+  it.effect("refuses change-request actions before committing when the host is unknown", () =>
+    Effect.gen(function* () {
+      const repoDir = yield* makeTempDir("t3code-git-manager-");
+      yield* initRepo(repoDir);
+      yield* runGit(repoDir, ["checkout", "-b", "feature/unknown-host"]);
+      NodeFS.writeFileSync(NodePath.join(repoDir, "unknown-host.txt"), "pending\n");
+      const headBefore = (yield* runGit(repoDir, ["rev-parse", "HEAD"])).stdout.trim();
+      const { manager, providerCalls } = yield* makeManager({
+        providerScenario: { kind: "unknown" },
+      });
+
+      const result = yield* runStackedAction(manager, {
+        cwd: repoDir,
+        action: "commit_push_pr",
+      }).pipe(Effect.result);
+
+      expect(Result.isFailure(result)).toBe(true);
+      if (Result.isFailure(result)) {
+        expect(result.failure._tag).toBe("GitManagerError");
+        if (result.failure._tag === "GitManagerError") {
+          expect(result.failure.detail).toBe(
+            "This repository's host does not support change requests.",
+          );
+        }
+      }
+      expect((yield* runGit(repoDir, ["rev-parse", "HEAD"])).stdout.trim()).toBe(headBefore);
+      expect((yield* runGit(repoDir, ["status", "--porcelain"])).stdout).toContain(
+        "unknown-host.txt",
+      );
+      expect(created(providerCalls)).toHaveLength(0);
+    }),
+  );
+
   it.effect(
     "pushes and creates PR from a no-upstream branch when local commits are ahead of base",
     () =>

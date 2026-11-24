@@ -167,6 +167,8 @@ export const TerminalOpenInput = Schema.Struct({
   env: Schema.optional(TerminalEnvSchema),
   providerInstanceId: Schema.optional(ProviderInstanceId),
   stopOnSettle: Schema.optional(Schema.Boolean),
+  // t4code: stop a running shell and start a fresh one in its place.
+  restart: Schema.optional(Schema.Boolean),
 });
 export type TerminalOpenInput = typeof TerminalOpenInput.Type;
 

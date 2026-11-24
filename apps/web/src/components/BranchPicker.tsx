@@ -38,6 +38,7 @@ export function BranchPicker({
   popupProps,
   renderItem,
   getItemType,
+  getSectionLabel,
   children,
 }: {
   items: string[];
@@ -57,6 +58,7 @@ export function BranchPicker({
   popupProps: Omit<ComponentProps<typeof ComboboxPopup>, "children">;
   renderItem: (value: string, index: number) => ReactNode;
   getItemType?: ((value: string) => string) | undefined;
+  getSectionLabel?: ((value: string) => string | null) | undefined;
   children: ReactNode;
 }) {
   const gt = useGT();
@@ -139,7 +141,28 @@ export function BranchPicker({
                 initialScrollOffset={0}
                 keyExtractor={(item) => item}
                 {...(getItemType ? { getItemType } : {})}
-                renderItem={({ item, index }) => renderItem(item, index)}
+                renderItem={({ item, index }) => {
+                  const sectionLabel = getSectionLabel?.(item) ?? null;
+                  const previousValue = index > 0 ? filteredItems[index - 1] : undefined;
+                  const previousSectionLabel =
+                    previousValue === undefined ? null : (getSectionLabel?.(previousValue) ?? null);
+                  const startsSection =
+                    sectionLabel !== null && sectionLabel !== previousSectionLabel;
+                  const row = renderItem(item, index);
+                  return startsSection ? (
+                    <div className="flex flex-col">
+                      <div
+                        className="px-2 pt-2 pb-1 font-medium text-3xs text-muted-foreground/55 uppercase tracking-wide"
+                        role="presentation"
+                      >
+                        {sectionLabel}
+                      </div>
+                      {row}
+                    </div>
+                  ) : (
+                    row
+                  );
+                }}
                 extraData={renderItem}
                 estimatedItemSize={28}
                 drawDistance={336}

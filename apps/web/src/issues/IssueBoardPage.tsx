@@ -4,7 +4,13 @@ import {
   threadRuntimeIsActive,
   type EnvironmentThreadShell,
 } from "@t3tools/client-runtime/state/models";
-import type { EnvironmentId, IssueBoard, IssueBoardRow } from "@t3tools/contracts";
+import {
+  autoDevProjectMatches,
+  autoDevProjectName,
+  type EnvironmentId,
+  type IssueBoard,
+  type IssueBoardRow,
+} from "@t3tools/contracts";
 import { ArrowDownIcon, ArrowUpIcon, ExternalLinkIcon, PlayIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -62,6 +68,15 @@ const DEV_STATE_LABEL: Record<DevState, string> = {
 
 const projectLabel = (row: IssueBoardRow) =>
   `${row.trackerProjectName || "?"} → ${row.projects.map((p) => p.name).join(", ") || "not linked"}`;
+
+function issueRunProject(row: IssueBoardRow) {
+  const target = autoDevProjectName(row.issue.descriptionText);
+  return target === null
+    ? row.projects[0]
+    : row.projects.find((project) =>
+        autoDevProjectMatches(row.issue.descriptionText, project.name),
+      );
+}
 
 /** The /issues page: the board for the primary environment. */
 export function IssueBoardPage() {
@@ -155,7 +170,7 @@ function IssueBoardTable({ environmentId }: { environmentId: EnvironmentId }) {
 
   const execute = (row: IssueBoardRow) =>
     withBusy(rowId(row), async () => {
-      const project = row.projects[0];
+      const project = issueRunProject(row);
       if (!project) return;
       const result = await executeIssue({
         environmentId,
@@ -292,6 +307,8 @@ function IssueBoardTable({ environmentId }: { environmentId: EnvironmentId }) {
                 const statuses = board?.statuses[row.issue.trackerId] ?? [];
                 const devState =
                   row.threadId === null ? null : issueDevState(threadById.get(row.threadId));
+                const runProject = issueRunProject(row);
+                const targetProject = autoDevProjectName(row.issue.descriptionText);
                 return (
                   <tr key={id} className="border-t border-border/60">
                     <td className="whitespace-nowrap px-2 py-1.5 font-mono text-xs">
@@ -361,11 +378,13 @@ function IssueBoardTable({ environmentId }: { environmentId: EnvironmentId }) {
                         title={
                           row.threadId !== null
                             ? "A thread is already started"
-                            : row.projects[0]
-                              ? `Run in ${row.projects[0].name}`
-                              : "Link this tracker project to a T4 project first"
+                            : runProject
+                              ? `Run in ${runProject.name}`
+                              : targetProject
+                                ? `Target project "${targetProject}" is not linked`
+                                : "Link this tracker project to a T4 project first"
                         }
-                        disabled={isBusy || row.threadId !== null || row.projects.length === 0}
+                        disabled={isBusy || row.threadId !== null || runProject === undefined}
                         onClick={() => void execute(row)}
                       >
                         <PlayIcon />

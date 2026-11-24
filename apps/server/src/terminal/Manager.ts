@@ -3354,7 +3354,9 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     const runtimeEnvChanged = !Equal.equals(currentRuntimeEnv, nextRuntimeEnv);
     const nextWorktreePath =
       input.worktreePath !== undefined ? (input.worktreePath ?? null) : liveSession.worktreePath;
+    const restartRequested = input.restart === true; // t4code
     const launchContextChanged =
+      restartRequested ||
       liveSession.cwd !== input.cwd ||
       runtimeEnvChanged ||
       liveSession.worktreePath !== nextWorktreePath;
@@ -3390,7 +3392,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
           cols: targetCols,
           rows: targetRows,
         },
-        "started",
+        restartRequested ? "restarted" : "started", // t4code
       );
       return snapshot(liveSession);
     }

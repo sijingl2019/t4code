@@ -3,7 +3,7 @@ import * as Schema from "effect/Schema";
 import { ProjectId, ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
 
 /** Marker at the start of an issue's plain-text description that opts it into auto development. */
-export const ISSUE_AUTO_DEV_MARKER = "#!t4code";
+const ISSUE_AUTO_DEV_MARKER = "#!t4code";
 
 export const IssueAttachmentRef = Schema.Struct({
   name: Schema.String,
@@ -110,6 +110,35 @@ export class IssueTrackerError extends Schema.TaggedError<IssueTrackerError>()(
 /** True when the description opts into auto development (`#!t4code` at its start). */
 export function hasAutoDevMarker(descriptionText: string): boolean {
   return descriptionText.trimStart().startsWith(ISSUE_AUTO_DEV_MARKER);
+}
+
+/**
+ * The T4 project title on the marker line, e.g. `#!t4code qiko-manager`. A marker followed by
+ * multiple words stays untargeted so inline descriptions keep their existing meaning.
+ */
+export function autoDevProjectName(descriptionText: string): string | null {
+  const text = descriptionText.trimStart();
+  if (!text.startsWith(ISSUE_AUTO_DEV_MARKER)) return null;
+  const tail = text.slice(ISSUE_AUTO_DEV_MARKER.length);
+  if (tail === "" || !/^\s/.test(tail)) return null;
+  const firstLine = tail.split(/\r?\n/, 1)[0]!.trim();
+  return firstLine !== "" && !/\s/.test(firstLine) ? firstLine : null;
+}
+
+/** True when the issue is untargeted or names this T4 project. */
+export function autoDevProjectMatches(descriptionText: string, projectName: string): boolean {
+  const target = autoDevProjectName(descriptionText);
+  return target === null || target.toLowerCase() === projectName.trim().toLowerCase();
+}
+
+/** Description without the auto-dev marker and optional target project. */
+export function stripAutoDevDirective(descriptionText: string): string {
+  const text = descriptionText.trimStart();
+  if (!text.startsWith(ISSUE_AUTO_DEV_MARKER)) return descriptionText.trim();
+  const rest = text.slice(ISSUE_AUTO_DEV_MARKER.length);
+  if (autoDevProjectName(text) === null) return rest.trim();
+  const newline = rest.search(/\r?\n/);
+  return newline === -1 ? "" : rest.slice(newline).trim();
 }
 
 /** A T4 project a tracker project is bound to. */

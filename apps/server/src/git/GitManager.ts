@@ -3629,6 +3629,16 @@ export const make = Effect.gen(function* () {
               initialStatus.aheadCount > 0 ||
               pushTarget?.viaPushRemote === true));
         const wantsPr = input.action === "create_pr" || input.action === "commit_push_pr";
+        if (wantsPr) {
+          const provider = yield* sourceControlProvider(input.cwd);
+          if (provider.kind === "unknown") {
+            return yield* new GitManagerError({
+              operation: "runStackedAction",
+              cwd: input.cwd,
+              detail: "This repository's host does not support change requests.",
+            });
+          }
+        }
 
         if (input.featureBranch && !wantsCommit) {
           return yield* new GitManagerError({

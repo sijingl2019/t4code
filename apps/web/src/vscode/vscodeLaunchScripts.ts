@@ -217,15 +217,17 @@ export function useVscodeLaunchScripts(
       );
 }
 
-/** Runs in a fresh terminal: a reused one would keep its old env. */
+/** Reruns a launch config in its own terminal and restarts that shell with the latest env. */
+export const vscodeLaunchActionId = (launch: VscodeLaunchScript) => `vscode-launch-${launch.name}`;
+
 export function runVscodeLaunchScript(
   run: (
     script: ProjectScript,
     options: {
       cwd: string;
       env: Record<string, string>;
-      preferNewTerminal: boolean;
       pairTerminal: boolean;
+      reuseActionTerminal: boolean;
       rememberAsLastInvoked: boolean;
     },
   ) => unknown,
@@ -233,7 +235,7 @@ export function runVscodeLaunchScript(
 ): void {
   void run(
     {
-      id: `vscode-launch-${launch.name}`,
+      id: vscodeLaunchActionId(launch),
       name: launch.name,
       command: launch.command,
       icon: "debug",
@@ -242,8 +244,8 @@ export function runVscodeLaunchScript(
     {
       cwd: launch.cwd,
       env: launch.env,
-      preferNewTerminal: true,
       pairTerminal: true,
+      reuseActionTerminal: true,
       rememberAsLastInvoked: false,
     },
   );

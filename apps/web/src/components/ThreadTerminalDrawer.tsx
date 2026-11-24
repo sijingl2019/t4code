@@ -17,6 +17,7 @@ import {
 } from "@t3tools/client-runtime/state/terminal";
 import {
   Plus,
+  RotateCcw,
   Square,
   SquareSplitHorizontal,
   SquareSplitVertical,
@@ -92,6 +93,7 @@ import { terminalEnvironment } from "../state/terminal";
 import { useEnvironmentScope } from "../state/session";
 import { openTerminalLinkInPreview } from "./preview/openTerminalLinkInPreview";
 import { terminalInputWriter } from "./terminal/terminalInputWriter";
+import { useRestartTerminal } from "./terminal/useRestartTerminal";
 import { useAtomCommand } from "../state/use-atom-command";
 import { preventTerminalCloseShortcut } from "../lib/terminalCloseShortcut";
 import { observeResize } from "../lib/observeResize";
@@ -1297,6 +1299,8 @@ function TerminalActionButton({
   );
 }
 
+const MIN_TERMINAL_PANE_PX = 160;
+
 function TerminalSplitPanes({
   terminalIds,
   splitDirection,
@@ -1327,35 +1331,78 @@ function TerminalSplitPanes({
   keybindings: ResolvedKeybindingsConfig;
 }) {
   const gt = useGT();
+  // t4code: draggable dividers between split panes, each pane kept at least MIN_TERMINAL_PANE_PX.
+  const vertical = splitDirection === "vertical";
+  const containerRef = useRef<HTMLDivElement>(null);
+  const layoutKey = `${splitDirection}:${terminalIds.join(",")}`;
+  const [paneSizes, setPaneSizes] = useState<{ key: string; fractions: number[] } | null>(null);
+  const fractions =
+    paneSizes?.key === layoutKey
+      ? paneSizes.fractions
+      : terminalIds.map(() => 1 / terminalIds.length);
+  const startPaneResize = (index: number, event: ReactPointerEvent<HTMLDivElement>) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    const total = rect ? (vertical ? rect.height : rect.width) : 0;
+    if (total <= 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const handle = event.currentTarget;
+    handle.setPointerCapture(event.pointerId);
+    const start = vertical ? event.clientY : event.clientX;
+    const initial = fractions;
+    const pair = initial[index]! + initial[index + 1]!;
+    const min = Math.min(MIN_TERMINAL_PANE_PX / total, pair / 2);
+    const onMove = (moveEvent: PointerEvent) => {
+      const delta = ((vertical ? moveEvent.clientY : moveEvent.clientX) - start) / total;
+      const size = Math.min(Math.max(initial[index]! + delta, min), pair - min);
+      const next = [...initial];
+      next[index] = size;
+      next[index + 1] = pair - size;
+      setPaneSizes({ key: layoutKey, fractions: next });
+    };
+    const onEnd = () => {
+      handle.removeEventListener("pointermove", onMove);
+      handle.removeEventListener("pointerup", onEnd);
+      handle.removeEventListener("pointercancel", onEnd);
+    };
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", onEnd);
+    handle.addEventListener("pointercancel", onEnd);
+  };
   return (
     <div
-      className="grid h-full w-full min-w-0 gap-0 overflow-hidden"
-      style={
-        splitDirection === "vertical"
-          ? {
-              gridTemplateRows: `repeat(${terminalIds.length}, minmax(0, 1fr))`,
-            }
-          : {
-              gridTemplateColumns: `repeat(${terminalIds.length}, minmax(0, 1fr))`,
-            }
-      }
+      ref={containerRef}
+      className={`flex h-full w-full min-w-0 overflow-hidden ${vertical ? "flex-col" : "flex-row"}`}
     >
-      {terminalIds.map((terminalId) => {
+      {terminalIds.map((terminalId, index) => {
         const terminalLaunchLocation = resolveLaunchLocation(terminalId);
         return (
           <div
             key={terminalId}
-            className={`min-h-0 min-w-0 ${
+            className={`relative min-h-0 min-w-0 ${
               splitDirection === "vertical"
                 ? "border-t first:border-t-0"
                 : "border-l first:border-l-0"
             } ${terminalId === activeTerminalId ? "border-border" : "border-border/70"}`}
+            style={{ flex: `${fractions[index] ?? 1} 1 0` }}
             onPointerDown={() => {
               if (terminalId !== activeTerminalId) {
                 onActiveTerminalChange(terminalId);
               }
             }}
           >
+            {index > 0 ? (
+              <div
+                role="separator"
+                aria-orientation={vertical ? "horizontal" : "vertical"}
+                className={`absolute z-10 hover:bg-primary/40 ${
+                  vertical
+                    ? "inset-x-0 -top-1 h-2 cursor-row-resize"
+                    : "inset-y-0 -left-1 w-2 cursor-col-resize"
+                }`}
+                onPointerDown={(event) => startPaneResize(index - 1, event)}
+              />
+            ) : null}
             <div className="h-full">
               <TerminalViewport
                 advancedTypography={advancedTypography}
@@ -1392,6 +1439,7 @@ function TerminalSidebarGroup({
   canOperateTerminal,
   onActiveTerminalChange,
   onCloseTerminal,
+  onRestartTerminal,
 }: {
   terminalGroup: ThreadTerminalGroup;
   activeTerminalId: string;
@@ -1401,6 +1449,7 @@ function TerminalSidebarGroup({
   canOperateTerminal: boolean;
   onActiveTerminalChange: (terminalId: string) => void;
   onCloseTerminal: (terminalId: string) => void;
+  onRestartTerminal: (terminalId: string) => void; // t4code
 }) {
   const gt = useGT();
   const isGroupActive = terminalGroup.terminalIds.includes(activeTerminalId);
@@ -1438,8 +1487,10 @@ function TerminalSidebarGroup({
         </button>
       )}
 
-      <div className="flex flex-col gap-0.5">
-        {terminalGroup.terminalIds.map((terminalId) => {
+      {/* t4code: tree elbows link a group's terminals to its header */}
+      <div className={cn("flex flex-col gap-0.5", showHeader && "ml-[11px]")}>
+        {terminalGroup.terminalIds.map((terminalId, index) => {
+          const isLastInGroup = index === terminalCount - 1;
           const isActive = terminalId === activeTerminalId;
           const terminalLabel = terminalLabelById.get(terminalId) ?? gt("Terminal");
           const closeTerminalLabel =
@@ -1453,30 +1504,50 @@ function TerminalSidebarGroup({
             <div
               key={terminalId}
               className={cn(
-                "group/tab flex h-6 w-full items-center gap-0.5 rounded-md pr-2 pl-1.5 text-xs",
-                isActive
-                  ? "bg-accent text-foreground"
-                  : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+                showHeader &&
+                  "relative pl-2.5 before:pointer-events-none before:absolute before:-top-1 before:left-0 before:h-4 before:w-2 before:rounded-bl-sm before:border-b before:border-l before:border-muted-foreground/40",
+                showHeader &&
+                  !isLastInGroup &&
+                  "after:pointer-events-none after:absolute after:top-0 after:-bottom-0.5 after:left-0 after:border-l after:border-muted-foreground/40",
               )}
             >
-              {canOperateTerminal ? (
-                <PanelTabCloseButton
-                  label={closeTerminalLabel}
-                  onClick={() => onCloseTerminal(terminalId)}
-                  tooltip={closeTerminalLabel}
-                >
-                  <TerminalSquare className="size-3 shrink-0" />
-                </PanelTabCloseButton>
-              ) : (
-                <TerminalSquare className="size-3 shrink-0" />
-              )}
-              <button
-                type="button"
-                className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 text-left"
-                onClick={() => onActiveTerminalChange(terminalId)}
+              <div
+                className={cn(
+                  "group/tab flex h-6 w-full items-center gap-0.5 rounded-md pr-2 pl-1.5 text-xs",
+                  isActive
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+                )}
               >
-                <span className="truncate">{terminalLabel}</span>
-              </button>
+                {canOperateTerminal ? (
+                  <PanelTabCloseButton
+                    label={closeTerminalLabel}
+                    onClick={() => onCloseTerminal(terminalId)}
+                    tooltip={closeTerminalLabel}
+                  >
+                    <TerminalSquare className="size-3 shrink-0" />
+                  </PanelTabCloseButton>
+                ) : (
+                  <TerminalSquare className="size-3 shrink-0" />
+                )}
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 text-left"
+                  onClick={() => onActiveTerminalChange(terminalId)}
+                >
+                  <span className="truncate">{terminalLabel}</span>
+                </button>
+                {/* t4code: restart this terminal */}
+                {canOperateTerminal && (
+                  <TerminalActionButton
+                    className="hidden shrink-0 cursor-pointer rounded p-0.5 hover:bg-accent group-hover/tab:inline-flex"
+                    onClick={() => onRestartTerminal(terminalId)}
+                    label={gt("Restart {terminal}", { terminal: terminalLabel })}
+                  >
+                    <RotateCcw className="size-3" />
+                  </TerminalActionButton>
+                )}
+              </div>
             </div>
           );
         })}
@@ -1708,6 +1779,17 @@ export default function ThreadTerminalDrawer({
       }
     });
   };
+  // t4code
+  const restartTerminalSession = useRestartTerminal(threadRef);
+  const restartTerminal = (terminalId: string) => {
+    if (!canOperateTerminal) return;
+    const fallback = resolveTerminalLaunchLocation(terminalId);
+    restartTerminalSession(terminalId, {
+      cwd: fallback.cwd,
+      worktreePath: fallback.worktreePath ?? null,
+    });
+  };
+  const restartTerminalActionLabel = gt("Restart Terminal");
 
   const handleResizePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
@@ -1895,6 +1977,16 @@ export default function ThreadTerminalDrawer({
               <Plus className="size-3.25" />
             </TerminalActionButton>
             <div className="h-4 w-px bg-border/80" />
+            {/* t4code */}
+            <TerminalActionButton
+              disabled={!canOperateTerminal}
+              className="p-1 text-foreground/90 transition-colors hover:bg-accent"
+              onClick={() => restartTerminal(resolvedActiveTerminalId)}
+              label={restartTerminalActionLabel}
+            >
+              <RotateCcw className="size-3.25" />
+            </TerminalActionButton>
+            <div className="h-4 w-px bg-border/80" />
             <TerminalActionButton
               disabled={!canOperateTerminal}
               className="p-1 text-foreground/90 transition-colors hover:bg-accent"
@@ -1933,7 +2025,7 @@ export default function ThreadTerminalDrawer({
           </div>
 
           {hasTerminalSidebar && (
-            <aside className="flex w-36 min-w-36 flex-col border border-border/70 bg-muted/10">
+            <aside className="flex w-48 min-w-48 flex-col border border-border/70 bg-muted/10">
               <div className="flex h-[22px] items-stretch justify-end border-b border-border/70">
                 {/* Sits above the taller touch resize handle so its buttons keep their taps. */}
                 <div className="inline-flex h-full items-stretch any-pointer-coarse:relative any-pointer-coarse:z-30">
@@ -1969,6 +2061,15 @@ export default function ThreadTerminalDrawer({
                   >
                     <Plus className="size-3.25" />
                   </TerminalActionButton>
+                  {/* t4code */}
+                  <TerminalActionButton
+                    disabled={!canOperateTerminal}
+                    className="inline-flex h-full items-center border-l border-border/70 px-1 text-foreground/90 transition-colors hover:bg-accent/70"
+                    onClick={() => restartTerminal(resolvedActiveTerminalId)}
+                    label={restartTerminalActionLabel}
+                  >
+                    <RotateCcw className="size-3.25" />
+                  </TerminalActionButton>
                   <TerminalActionButton
                     disabled={!canOperateTerminal}
                     className="inline-flex h-full items-center border-l border-border/70 px-1 text-foreground/90 transition-colors hover:bg-accent/70"
@@ -1992,6 +2093,7 @@ export default function ThreadTerminalDrawer({
                     canOperateTerminal={canOperateTerminal}
                     onActiveTerminalChange={onActiveTerminalChange}
                     onCloseTerminal={confirmCloseTerminal}
+                    onRestartTerminal={restartTerminal}
                   />
                 ))}
               </div>

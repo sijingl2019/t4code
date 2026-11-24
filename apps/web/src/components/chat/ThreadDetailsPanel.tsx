@@ -86,6 +86,7 @@ interface ThreadDetailsPanelProps extends Pick<
   onOpenChanges?: () => void;
   onRunProjectScript: (script: ProjectScript) => void;
   onRunLaunchScript?: (script: VscodeLaunchScript) => void; // t4code: .vscode/launch.json
+  isActionRunning?: (actionId: string) => boolean; // t4code
   onAddProjectScript: (input: NewProjectScriptInput) => Promise<ProjectScriptActionResult>;
   onUpdateProjectScript: (
     scriptId: string,
@@ -239,6 +240,9 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                         onDeleteScript={props.onDeleteProjectScript}
                         launchScripts={launchScripts}
                         onRunLaunchScript={props.onRunLaunchScript}
+                        {...(props.isActionRunning
+                          ? { isActionRunning: props.isActionRunning }
+                          : {})} // t4code
                       />
                     ) : null}
                   </div>

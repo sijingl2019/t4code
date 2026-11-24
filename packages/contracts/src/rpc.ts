@@ -133,6 +133,10 @@ import {
   VcsCreateRefInput,
   VcsCreateRefResult,
   VcsCreateWorktreeInput,
+  VcsDeleteBranchInput,
+  VcsRenameBranchInput,
+  VcsRenameBranchResult,
+  VcsMergeBranchInput,
   VcsCreateWorktreeResult,
   VcsInitInput,
   VcsListRefsInput,
@@ -507,6 +511,9 @@ export const WS_METHODS = {
   vcsRemoveWorktree: "vcs.removeWorktree",
   vcsCreateRef: "vcs.createRef",
   vcsSwitchRef: "vcs.switchRef",
+  vcsDeleteBranch: "vcs.deleteBranch",
+  vcsRenameBranch: "vcs.renameBranch",
+  vcsMergeBranch: "vcs.mergeBranch",
   vcsInit: "vcs.init",
 
   gitRunStackedAction: "git.runStackedAction",
@@ -1853,6 +1860,22 @@ const WsVcsSwitchRefRpc = Rpc.make(WS_METHODS.vcsSwitchRef, {
   error: Schema.Union([GitCommandError, EnvironmentAuthorizationError]),
 });
 
+const WsVcsDeleteBranchRpc = Rpc.make(WS_METHODS.vcsDeleteBranch, {
+  payload: VcsDeleteBranchInput,
+  error: Schema.Union([GitCommandError, EnvironmentAuthorizationError]),
+});
+
+const WsVcsRenameBranchRpc = Rpc.make(WS_METHODS.vcsRenameBranch, {
+  payload: VcsRenameBranchInput,
+  success: VcsRenameBranchResult,
+  error: Schema.Union([GitCommandError, EnvironmentAuthorizationError]),
+});
+
+const WsVcsMergeBranchRpc = Rpc.make(WS_METHODS.vcsMergeBranch, {
+  payload: VcsMergeBranchInput,
+  error: Schema.Union([GitCommandError, EnvironmentAuthorizationError]),
+});
+
 const WsVcsInitRpc = Rpc.make(WS_METHODS.vcsInit, {
   payload: VcsInitInput,
   error: Schema.Union([VcsError, EnvironmentAuthorizationError]),
@@ -2534,6 +2557,9 @@ export const WsRpcGroup = RpcGroup.make(
   WsVcsRemoveWorktreeRpc,
   WsVcsCreateRefRpc,
   WsVcsSwitchRefRpc,
+  WsVcsDeleteBranchRpc,
+  WsVcsRenameBranchRpc,
+  WsVcsMergeBranchRpc,
   WsVcsInitRpc,
   WsReviewGetBranchCommitsRpc,
   WsReviewGetDiffPreviewRpc,

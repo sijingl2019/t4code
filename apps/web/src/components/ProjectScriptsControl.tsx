@@ -14,6 +14,7 @@ import {
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
 import { projectScriptMenuLabel } from "@t3tools/shared/projectScriptsCopy";
+import { ActionRestartMark } from "./ActionRestartMark"; // t4code
 import { ChevronDownIcon, DownloadIcon, PlusIcon, SettingsIcon, WrenchIcon } from "lucide-react";
 import React, { useState } from "react";
 import { T, useGT, useMessages, Var } from "gt-react";
@@ -81,6 +82,7 @@ interface ProjectScriptsControlProps {
   onDeleteScript: (scriptId: string) => Promise<ProjectScriptActionResult>;
   launchScripts?: ReadonlyArray<VscodeLaunchScript>; // t4code
   onRunLaunchScript?: ((script: VscodeLaunchScript) => void) | undefined; // t4code
+  isActionRunning?: ((actionId: string) => boolean) | undefined; // t4code
 }
 
 export default function ProjectScriptsControl({
@@ -97,6 +99,7 @@ export default function ProjectScriptsControl({
   onDeleteScript,
   launchScripts = NO_LAUNCH_SCRIPTS,
   onRunLaunchScript,
+  isActionRunning,
 }: ProjectScriptsControlProps) {
   const gt = useGT();
   const messages = useMessages();
@@ -225,6 +228,9 @@ export default function ProjectScriptsControl({
           >
             <ScriptIcon icon={script.icon} className="size-4" />
             <MenuItemLabel>{projectScriptMenuLabel(script, messages)}</MenuItemLabel>
+            {isActionRunning?.(script.id) && (
+              <ActionRestartMark name={script.name} className="order-last" />
+            )}
             <span className="relative ms-auto flex h-6 min-w-6 items-center justify-end">
               {shortcutLabel &&
                 (presentation === "menu" ? (
@@ -266,6 +272,7 @@ export default function ProjectScriptsControl({
         separated={scripts.length > 0 || importableScripts.length > 0}
         density={presentation === "menu" ? "touch" : "default"}
         onRun={onRunLaunchScript}
+        isActionRunning={isActionRunning}
       />
       <MenuItem density={presentation === "menu" ? "touch" : "default"} onClick={openAddDialog}>
         <PlusIcon className="size-4" />

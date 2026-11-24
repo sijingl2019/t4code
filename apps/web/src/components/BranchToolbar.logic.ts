@@ -375,6 +375,34 @@ export function isWorktreeChangeBlocked(input: {
   );
 }
 
+export type BranchContextMenuAction = "checkout" | "create" | "merge" | "delete" | "rename";
+
+export interface BranchContextMenuActionState {
+  readonly id: BranchContextMenuAction;
+  readonly disabled: boolean;
+}
+
+export function resolveBranchContextMenuActions(input: {
+  isRemote: boolean;
+  isCurrent: boolean;
+  currentBranch: string | null;
+  canWrite: boolean;
+  isPending: boolean;
+}): ReadonlyArray<BranchContextMenuActionState> {
+  if (input.isRemote) return [];
+
+  const disabled = !input.canWrite || input.isPending;
+  if (input.isCurrent) return [{ id: "create", disabled }];
+
+  return [
+    { id: "checkout", disabled },
+    { id: "create", disabled },
+    { id: "merge", disabled: disabled || input.currentBranch === null },
+    { id: "delete", disabled },
+    { id: "rename", disabled },
+  ];
+}
+
 export function shouldIncludeBranchPickerItem(input: {
   itemValue: string;
   normalizedQuery: string;

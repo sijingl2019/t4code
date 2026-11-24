@@ -132,6 +132,7 @@ import { ActivityShimmerOverlay } from "../chat/TimelineRowParts";
 import { useThreadHasUnsentDraft } from "../../composerDraftStore";
 import { ThreadDetailsIssueRows } from "../chat/ThreadDetailsIssueRows";
 import { IssueGlyph, issueStatePresentation } from "../issue/issuePresentation";
+import { SidebarApprovalStatusMenu } from "./SidebarApprovalStatusMenu";
 
 // The fields thread rows show. Provider status pushes refresh `checkedAt`,
 // status and auth on every provider; leaving those out keeps each
@@ -849,6 +850,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                         }
                       : null;
   const isWokeStatus = topStatus?.icon === "woke";
+  const isApprovalStatus = topStatus?.icon === "approval";
 
   const branchMismatch = resolveLocalCheckoutBranchMismatch({
     effectiveEnvMode: thread.worktreePath === null ? "local" : "worktree",
@@ -1411,7 +1413,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                   <span
                     className={cn(
                       "inline-flex justify-end tabular-nums text-secondary-label transition-opacity",
-                      !isWoke && "group-any-hover/sidebar-row:opacity-0",
+                      !isWoke && !isApprovalStatus && "group-any-hover/sidebar-row:opacity-0",
                     )}
                   >
                     {variantAction === "unsnooze" && props.snoozeWakeLabelText !== null ? (
@@ -1441,6 +1443,13 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                           <T>Dismiss Woke notification</T>
                         </TooltipPopup>
                       </Tooltip>
+                    ) : inFolder && isApprovalStatus && topStatus ? (
+                      <SidebarApprovalStatusMenu
+                        thread={thread}
+                        label={topStatus.label}
+                        className={cn("text-xs", topStatus.className)}
+                        icon={<TopStatusIcon icon={topStatus.icon} className="size-3" />}
+                      />
                     ) : inFolder && topStatus ? (
                       // Folder rows have no status line, so the status takes the time slot.
                       <span
@@ -1464,7 +1473,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                       </span>
                     )}
                   </span>
-                  {variantAction === "unsnooze" ? (
+                  {!isApprovalStatus && variantAction === "unsnooze" ? (
                     !props.snoozeSupported ? null : (
                       <button
                         type="button"
@@ -1479,7 +1488,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                         <AlarmClockOffIcon className="mb-px size-3" />
                       </button>
                     )
-                  ) : !props.settlementSupported ? null : variantAction === "unsettle" ? (
+                  ) : !props.settlementSupported || isApprovalStatus ? null : variantAction ===
+                    "unsettle" ? (
                     <Tooltip>
                       <TooltipTrigger
                         render={
@@ -1606,7 +1616,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                 >
                   <span
                     className={cn(
-                      isWokeStatus
+                      isWokeStatus || isApprovalStatus
                         ? "pointer-events-auto"
                         : "pointer-events-none group-has-[:focus-visible]/sidebar-status-slot:absolute group-has-[:focus-visible]/sidebar-status-slot:right-0 group-has-[:focus-visible]/sidebar-status-slot:opacity-0 group-any-hover/sidebar-row:absolute group-any-hover/sidebar-row:right-0 group-any-hover/sidebar-row:opacity-0",
                       "flex items-center self-center justify-self-end tabular-nums text-secondary-label",
@@ -1636,6 +1646,13 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                             <T>Dismiss Woke notification</T>
                           </TooltipPopup>
                         </Tooltip>
+                      ) : isApprovalStatus ? (
+                        <SidebarApprovalStatusMenu
+                          thread={thread}
+                          label={topStatus.label}
+                          className={topStatus.className}
+                          icon={<TopStatusIcon icon={topStatus.icon} className="size-4" />}
+                        />
                       ) : (
                         <span
                           className={cn(
@@ -1669,7 +1686,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                       <RelativeTimeLabel timestamp={resolveThreadActivityTimestamp(thread)} />
                     )}
                   </span>
-                  {props.settlementSupported || showSnoozeButton || hasUnsentDraft ? (
+                  {!isApprovalStatus &&
+                  (props.settlementSupported || showSnoozeButton || hasUnsentDraft) ? (
                     <span
                       className={cn(
                         // Mouse clicks leave Settle focused; focus-within would pin controls over

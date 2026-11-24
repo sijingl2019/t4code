@@ -15,7 +15,14 @@ import {
 import { isLoopbackHost } from "@t3tools/shared/preview";
 import { T, useGT, Var } from "gt-react";
 import { m } from "~/i18n/messages";
-import { CableIcon, GlobeIcon, SquareIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react";
+import {
+  CableIcon,
+  GlobeIcon,
+  RotateCcwIcon,
+  SquareIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+} from "lucide-react";
 import { type MouseEvent, useState } from "react";
 
 import {
@@ -39,6 +46,7 @@ import { previewEnvironment } from "../../state/preview";
 import { useEnvironmentScope } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { openDiscoveredPort } from "../preview/openDiscoveredPort";
+import { useRestartTerminal } from "../terminal/useRestartTerminal";
 import { Spinner } from "../ui/spinner";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -83,6 +91,8 @@ function ThreadServersList(props: ThreadServersPanelProps) {
   const [stoppingKey, setStoppingKey] = useState<string | null>(null);
   const [forwardingPort, setForwardingPort] = useState<number | null>(null);
   const [visibleCount, setVisibleCount] = useState(SERVER_PAGE_COUNT);
+  const canRestart = useEnvironmentScope(props.environmentId, AuthTerminalOperateScope); // t4code
+  const restartTerminal = useRestartTerminal(scopeThreadRef(props.environmentId, props.threadId));
 
   if (servers.length === 0) return null;
   const externalClickLabel = isMacPlatform(navigator.platform) ? "⌘-click" : "Ctrl-click";
@@ -181,7 +191,13 @@ function ThreadServersList(props: ThreadServersPanelProps) {
           const key = serverKey(server);
           const stoppable = canStop && supportsStop && server.pid !== null;
           const forward = findPortForward(forwards, props.environmentId, server.port);
-          const actionCount = Number(stoppable) + Number(canForward);
+          // t4code: a server started in one of this thread's terminals can be restarted.
+          const restartTerminalId =
+            canRestart && server.terminal?.threadId === props.threadId
+              ? server.terminal.terminalId
+              : null;
+          const actionCount =
+            Number(stoppable) + Number(canForward) + Number(restartTerminalId !== null);
           return (
             <li
               key={key}
@@ -210,6 +226,7 @@ function ThreadServersList(props: ThreadServersPanelProps) {
                       "flex min-w-0 flex-1 flex-col gap-0.5",
                       actionCount === 1 && "pe-6",
                       actionCount === 2 && "pe-12",
+                      actionCount === 3 && "pe-18",
                     )}
                   >
                     <span className="truncate text-sm font-medium leading-4 text-foreground/85">
@@ -288,6 +305,26 @@ function ThreadServersList(props: ThreadServersPanelProps) {
                         ) : (
                           <T>Forward to this machine, for any app here</T>
                         )}
+                      </TooltipPopup>
+                    </Tooltip>
+                  ) : null}
+                  {restartTerminalId !== null ? (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <ThreadDetailsControl
+                            size="icon-xs"
+                            variant="ghost"
+                            part="icon"
+                            aria-label={gt("Restart localhost:{port}", { port: server.port })}
+                            onClick={() => restartTerminal(restartTerminalId)}
+                          />
+                        }
+                      >
+                        <RotateCcwIcon aria-hidden className="size-3.5" />
+                      </TooltipTrigger>
+                      <TooltipPopup side="left">
+                        <T>Restart server</T>
                       </TooltipPopup>
                     </Tooltip>
                   ) : null}

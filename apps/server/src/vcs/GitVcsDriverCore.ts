@@ -105,6 +105,7 @@ const REVIEW_DIFF_FILE_MAX_OUTPUT_BYTES = 1024 * 1024;
 const GIT_IDENT_KEYWORD = /\$Id:[^$\n]*\$/g;
 const REVIEW_BRANCH_COMMIT_LIMIT = 100;
 const REVIEW_BRANCH_SUBJECT_LIMIT = 300;
+const REVIEW_COMMIT_MESSAGE_MAX_LENGTH = 10_000;
 const REVIEW_BRANCH_COMMIT_MAX_OUTPUT_BYTES = 128 * 1024;
 // Client patch parsers require a/ and b/ prefixes; override user diff prefix settings.
 export const PATCH_RENDER_PREFIX_ARGS = ["--src-prefix=a/", "--dst-prefix=b/"] as const;
@@ -512,6 +513,7 @@ const GIT_FAILURE_REASON_PATTERNS: ReadonlyArray<readonly [RegExp, GitCommandFai
     "authentication_failed",
   ],
   [/host key verification failed/i, "host_key_unverified"],
+  [/^(?:CONFLICT \(.+\):|Automatic merge failed; fix conflicts)/im, "merge_conflict"],
   [
     /(?:could not read from remote repository|does not appear to be a git repository|repository .+ not found)/i,
     "remote_unreachable",
@@ -543,6 +545,7 @@ const GIT_FAILURE_REASON_DETAILS: Partial<Record<GitCommandFailureReason, string
     "The remote has commits this branch doesn't have. Pull or rebase, then push again.",
   config_locked:
     "Another Git process kept the repository's config locked. Wait for it to finish, then retry.",
+  merge_conflict: "The merge has conflicts. Resolve them before continuing.",
 };
 
 function gitFailureDetail(reason: GitCommandFailureReason | null): string {
@@ -558,7 +561,8 @@ const GIT_NOT_A_COMMIT_PATTERN = /^error: .+(?:, not a commit|expected commit ty
 
 // Trust only Git's diagnostic prefixes: local hooks can write indistinguishable text.
 // Exclude `remote:` too, since it prefixes remote hook output as well as server diagnostics.
-const GIT_DIAGNOSTIC_LINE_PATTERN = /^(?:fatal|error):|^!\s|^\s+!\s/;
+const GIT_DIAGNOSTIC_LINE_PATTERN =
+  /^(?:fatal|error):|^!\s|^\s+!\s|^CONFLICT \(|^Automatic merge failed; fix conflicts/im;
 // SSH credential refusals are unprefixed; Git's later generic error would otherwise misclassify them as unreachable.
 const SSH_TRANSPORT_REFUSAL_PATTERN =
   /Permission denied \((?:publickey|password|keyboard-interactive)|Permission denied, please try again|Host key verification failed/i;
@@ -4261,11 +4265,13 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       }
       return yield* reviewCommitError(cwd, "Could not resolve the current branch commit.");
     }
-    const { mergeBase } = yield* resolveReviewMergeBase(
-      cwd,
-      repository.currentBranch,
-      input.baseRef,
-    );
+    const revision =
+      input.scope === "head"
+        ? "HEAD"
+        : `${
+            (yield* resolveReviewMergeBase(cwd, repository.currentBranch, input.baseRef)).mergeBase
+          }..HEAD`;
+    const includesMessages = input.scope === "head";
     const result = yield* executeGit(
       "GitVcsDriver.getReviewBranchCommits",
       cwd,
@@ -4274,9 +4280,9 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
         "-z",
         "--no-notes",
         "--no-show-signature",
-        "--format=%H%x00%s%x00%cI",
+        includesMessages ? "--format=%H%x00%cI%x00%B" : "--format=%H%x00%s%x00%cI",
         `--max-count=${REVIEW_BRANCH_COMMIT_LIMIT + 1}`,
-        `${mergeBase}..HEAD`,
+        revision,
       ],
       {
         maxOutputBytes: REVIEW_BRANCH_COMMIT_MAX_OUTPUT_BYTES,
@@ -4288,21 +4294,40 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     }
     const fields = result.stdout.split("\0");
     const completeFieldCount = fields.length - 1;
-    const commits: Array<{ sha: string; subject: string; committedAt: string }> = [];
+    const commits: Array<{
+      sha: string;
+      subject: string;
+      message?: string;
+      committedAt: string;
+    }> = [];
     for (
       let index = 0;
       index + 2 < completeFieldCount && commits.length <= REVIEW_BRANCH_COMMIT_LIMIT;
       index += 3
     ) {
       const sha = fields[index];
+      if (!sha || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(sha)) {
+        return yield* reviewCommitError(cwd, "Could not read branch commit metadata.");
+      }
+      if (includesMessages) {
+        const committedAt = fields[index + 1];
+        const rawMessage = fields[index + 2];
+        if (committedAt === undefined || rawMessage === undefined) {
+          return yield* reviewCommitError(cwd, "Could not read branch commit metadata.");
+        }
+        const message = rawMessage.trimEnd().slice(0, REVIEW_COMMIT_MESSAGE_MAX_LENGTH);
+        const subject = message.split("\n", 1)[0]?.trim() ?? "";
+        commits.push({
+          sha,
+          subject: subject.slice(0, REVIEW_BRANCH_SUBJECT_LIMIT),
+          message,
+          committedAt,
+        });
+        continue;
+      }
       const subject = fields[index + 1];
       const committedAt = fields[index + 2];
-      if (
-        !sha ||
-        subject === undefined ||
-        !committedAt ||
-        !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(sha)
-      ) {
+      if (subject === undefined || !committedAt) {
         return yield* reviewCommitError(cwd, "Could not read branch commit metadata.");
       }
       commits.push({ sha, subject: subject.slice(0, REVIEW_BRANCH_SUBJECT_LIMIT), committedAt });
@@ -6254,6 +6279,36 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     );
   });
 
+  const mergeBranch: GitVcsDriver.GitVcsDriver["Service"]["mergeBranch"] = Effect.fn("mergeBranch")(
+    function* (input) {
+      const args = ["merge", "--no-edit", "--", input.refName];
+      const result = yield* executeGitWithStableDiagnostics(
+        "GitVcsDriver.mergeBranch",
+        input.cwd,
+        args,
+        {
+          timeoutMs: 120_000,
+          allowNonZeroExit: true,
+        },
+      );
+      if (result.exitCode === 0) return;
+
+      const diagnostics = `${result.stdout}\n${result.stderr}`;
+      const isConflict = /^(?:CONFLICT \(.+\):|Automatic merge failed; fix conflicts)/im.test(
+        diagnostics,
+      );
+      const reason = isConflict ? "merge_conflict" : null;
+      return yield* new GitCommandError({
+        ...gitCommandContext({ operation: "GitVcsDriver.mergeBranch", cwd: input.cwd, args }),
+        ...(reason === null ? {} : { reason }),
+        detail: isConflict ? gitFailureDetail(reason) : "git merge failed",
+        ...(result.exitCode === null ? {} : { exitCode: result.exitCode }),
+        stdoutLength: result.stdout.length,
+        stderrLength: result.stderr.length,
+      });
+    },
+  );
+
   const switchRef: GitVcsDriver.GitVcsDriver["Service"]["switchRef"] = Effect.fn("switchRef")(
     function* (input) {
       const [localInputExists, remoteExists] = yield* Effect.all(
@@ -6385,12 +6440,17 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
 
   const createRef: GitVcsDriver.GitVcsDriver["Service"]["createRef"] = Effect.fn("createRef")(
     function* (input) {
-      yield* executeGit("GitVcsDriver.createRef", input.cwd, ["branch", "--", input.refName], {
-        timeoutMs: 10_000,
-        fallbackErrorDetail: "git branch create failed",
-        // `branch.autoSetupMerge=always` records HEAD's branch as the upstream.
-        writesSharedConfig: true,
-      });
+      yield* executeGit(
+        "GitVcsDriver.createRef",
+        input.cwd,
+        ["branch", "--", input.refName, ...(input.baseRef === undefined ? [] : [input.baseRef])],
+        {
+          timeoutMs: 10_000,
+          fallbackErrorDetail: "git branch create failed",
+          // `branch.autoSetupMerge=always` records the start point as the upstream.
+          writesSharedConfig: true,
+        },
+      );
       if (input.switchRef) {
         yield* switchRef({ cwd: input.cwd, refName: input.refName });
       }
@@ -6575,6 +6635,9 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     }),
     renameBranch: Effect.fnUntraced(function* (input) {
       return yield* withListRefsInvalidation(input.cwd, renameBranch(input));
+    }),
+    mergeBranch: Effect.fnUntraced(function* (input) {
+      return yield* withListRefsInvalidation(input.cwd, mergeBranch(input));
     }),
     createRef: Effect.fnUntraced(function* (input) {
       return yield* withListRefsInvalidation(input.cwd, createRef(input));

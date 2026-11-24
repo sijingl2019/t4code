@@ -94,7 +94,9 @@ Features:
   workspace root; one tracker project may have several. Each tracker's `statusFilter` (default / include /
   exclude by status id) narrows which assigned issues are listed; `issues.catalog` returns the
   tracker's projects and statuses for the settings UI. Auto development picks up issues whose
-  description starts with `#!t4code` (`ISSUE_AUTO_DEV_MARKER`). While it is on, the Commit button's
+  description starts with `#!t4code` (`ISSUE_AUTO_DEV_MARKER`). A single token on that line names
+  the target T4 project (e.g. `#!t4code qiko-manager`), which matters when one tracker project is
+  bound to several. While it is on, the Commit button's
   message for a thread started from an issue becomes `#123 <title>` + description body (a typed
   message gets `#123` prepended): `packages/shared/src/issueCommitMessage.ts`, applied server-side by
   `apps/server/src/issues/issueCommitMessage.ts`, hooked into
@@ -181,6 +183,19 @@ Features:
   `packages/contracts/src/translation.ts`, logic in `apps/server/src/translation/translate.ts`, API keys as
   secrets `translation-<id>-apiKey` (`settingsSecrets.ts`), UI `settings/TranslationSettings.tsx` mounted after
   Global memory in `ProviderSettingsPanel.tsx`. Wiring follows the `memory.*` RPC lines in the same files.
+- Terminal sidebar (`ThreadTerminalDrawer.tsx`): wider (`w-48`, upstream `w-36`) and each group's terminals hang
+  off the group header with tree elbow lines (`TerminalSidebarGroup`, marked `t4code`). Split panes are
+  flex children with draggable dividers, each kept at least 160px (`TerminalSplitPanes`, marked `t4code`;
+  upstream uses an equal-width grid).
+- Terminal restart: a Restart button in the terminal toolbars and on each sidebar row (`ThreadTerminalDrawer.tsx`,
+  marked `t4code`) reopens the terminal with `terminal.open` `restart: true` (contracts `terminal.ts`; server
+  `terminal/Manager.ts` treats it as a launch-context change and emits `restarted`), then retypes the script the
+  terminal was started for, remembered client-side by `runProjectScript` (`components/terminal/terminalRelaunch.ts`).
+  Shared as `useRestartTerminal`; also on each Servers row started from a thread terminal (`ThreadServersPanel.tsx`).
+  An Action (project script or launch.json config) whose own terminal (`lib/actionTerminal.ts`) still runs a process
+  shows a restart mark in the Actions menu (`ActionRestartMark.tsx`; `isActionRunning` passed `ChatView.tsx` →
+  `ThreadDetailsPanel.tsx` → `ProjectScriptsControl.tsx` / `VscodeLaunchMenuItems.tsx`); clicking it reruns the
+  Action in that terminal with `restart: true`.
 - Terminal font picker: already upstream (`TypographySettings.tsx`, `FontFamilyPicker.tsx`).
 
 ## Desktop dev
