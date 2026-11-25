@@ -141,6 +141,57 @@ function threadShell(projectId: ProjectId, index: number): EnvironmentThreadShel
 }
 
 describe("sidebar running filter", () => {
+  it("does not count unloaded settled threads while showing running threads only", async () => {
+    const activeProject = project("active");
+    const idleThread = threadShell(activeProject.id, 0);
+    const runningShell = threadShell(activeProject.id, 1);
+    const runningThread = {
+      ...runningShell,
+      title: "Running thread",
+      runtime: {
+        status: "running" as const,
+        activeRunId: RunId.make("run-active"),
+        providerInstanceId: runningShell.providerInstanceId,
+        providerName: null,
+        lastError: null,
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    };
+    const originalShelf = vi.mocked(shelfHooks.useOlderSettledShelf).getMockImplementation()!;
+    using _shelf = vi.spyOn(shelfHooks, "useOlderSettledShelf").mockImplementation((input) => ({
+      ...originalShelf(input),
+      unloadedCount: () => 7,
+    }));
+    vi.mocked(useNowMinute).mockReturnValue("2026-01-01T00:00");
+    vi.mocked(useProjects).mockReturnValue([activeProject]);
+    vi.mocked(useQuietThreadShells).mockReturnValue([runningThread, idleThread]);
+    vi.mocked(useHandleNewThread).mockReturnValue({
+      activeDraftThread: null,
+      activeThread: null,
+      defaultProjectRef: {
+        environmentId: activeProject.environmentId,
+        projectId: activeProject.id,
+      },
+      defaultProjectFallbackReady: true,
+      handleNewThread: vi.fn().mockResolvedValue(null),
+      routeDraftId: null,
+      routeThreadRef: null,
+    });
+
+    await using screen = await render(
+      <SidebarProvider>
+        <Sidebar routeReveal={{ observedKey: null, pendingKey: null }} />
+      </SidebarProvider>,
+    );
+    const settledHeader = screen.getByTestId("sidebar-settled-header");
+    await expect.element(settledHeader).toHaveTextContent("Settled7");
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Show running threads only", exact: true }),
+    );
+    await expect.element(settledHeader).toHaveTextContent("Settled0");
+  });
+
   it("opens collapsed project folders when running-only starts", async () => {
     using stack = new DisposableStack();
     const previousSettings = getClientSettings();
