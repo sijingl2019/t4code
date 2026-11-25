@@ -1,4 +1,3 @@
-import { GlassSelection } from "./GlassSelection";
 import { thrownErrorMessage } from "@t3tools/client-runtime/errors";
 import { msg, T, useGT, useMessages } from "gt-react";
 import { m } from "../i18n/messages";
@@ -3567,7 +3566,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                         "after:pointer-events-none after:absolute after:inset-x-0 after:-bottom-30 after:h-px after:content-['']",
                     )}
                   >
-                    <GlassSelection selector="[data-glass-thread]" follow={false} />
                     {(() => {
                       const renderThreadRow = (
                         thread: EnvironmentThreadShell,
