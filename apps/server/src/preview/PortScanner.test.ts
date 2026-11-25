@@ -727,6 +727,69 @@ effectIt.effect("ignores a partial Windows netstat snapshot when one query exits
   }).pipe(Effect.provide(layer));
 });
 
+effectIt.effect("stops only a terminal-owned Windows server with taskkill", () => {
+  let listening = true;
+  const commands: Array<{ readonly command: string; readonly args: ReadonlyArray<string> }> = [];
+  const layer = layerScanner.pipe(
+    Layer.provide(
+      Layer.mergeAll(
+        layerNoProc,
+        Layer.succeed(ProcessRunner.ProcessRunner, {
+          run: (input) => {
+            commands.push({ command: input.command, args: input.args });
+            if (input.command === "tasklist.exe") {
+              return Effect.succeed(
+                processOutput('"node.exe","1234","Console","1","50,000 K"\r\n'),
+              );
+            }
+            if (input.command === "netstat.exe") {
+              return Effect.succeed(
+                processOutput(
+                  listening
+                    ? "  TCP    127.0.0.1:5173         0.0.0.0:0              LISTENING       1234\r\n"
+                    : "",
+                ),
+              );
+            }
+            if (input.command === "taskkill.exe") {
+              listening = false;
+              return Effect.succeed(processOutput(""));
+            }
+            return processProbeFailure(input);
+          },
+        }),
+        Layer.succeed(HostProcess.Platform, "win32"),
+        FetchHttpClient.layer.pipe(
+          Layer.provide(
+            Layer.succeed(FetchHttpClient.Fetch, () =>
+              Promise.resolve(new Response("hello", { headers: { "content-type": "text/html" } })),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  return Effect.gen(function* () {
+    const scanner = yield* PortScanner.PortDiscovery;
+    yield* scanner.registerTerminalProcesses({
+      threadId: "scanner-thread",
+      terminalId: "scanner-terminal",
+      processIds: [1234],
+    });
+    expect(yield* scanner.scan()).toMatchObject([{ pid: 1234, port: 5173 }]);
+
+    const wrongPort = yield* Effect.flip(scanner.stopServer({ pid: 1234, port: 8765 }));
+    expect(wrongPort.reason).toBe("not-found");
+
+    yield* scanner.stopServer({ pid: 1234, port: 5173 });
+    expect(commands.filter((entry) => entry.command === "taskkill.exe")).toEqual([
+      { command: "taskkill.exe", args: ["/PID", "1234", "/T", "/F"] },
+    ]);
+    expect(yield* scanner.scan()).toEqual([]);
+  }).pipe(Effect.provide(layer));
+});
+
 effectIt.effect("rechecks the socket owner before stopping a Linux server without lsof", () => {
   let holder = "4242";
   const missing = FileSystem.makeNoop({});

@@ -104,6 +104,10 @@ const PS_TIMEOUT_MS = 5_000;
 const PS_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 const STOP_GRACE_MS = 3_000;
 const STOP_POLL_INTERVAL = Duration.millis(250);
+const WINDOWS_TASKKILL_TIMEOUT_MS = 10_000;
+const WINDOWS_TASKKILL_MAX_OUTPUT_BYTES = 64 * 1024;
+// taskkill exits 128 when the validated process exits before the kill.
+const WINDOWS_TASKKILL_NOT_FOUND_EXIT_CODE = 128;
 
 type Listener = (servers: ReadonlyArray<DiscoveredLocalServer>) => Effect.Effect<void>;
 
@@ -1175,12 +1179,33 @@ export const make = Effect.gen(function* PortDiscoveryMake() {
     Effect.map((result) => parseProcessTable(result.stdout)),
   );
 
+  const stopWindowsProcessTree = Effect.fn("PortDiscovery.stopWindowsProcessTree")(function* (
+    input: PreviewStopLocalServerInput,
+  ) {
+    const result = yield* processRunner
+      .run({
+        command: "taskkill.exe",
+        args: ["/PID", String(input.pid), "/T", "/F"],
+        timeout: Duration.millis(WINDOWS_TASKKILL_TIMEOUT_MS),
+        maxOutputBytes: WINDOWS_TASKKILL_MAX_OUTPUT_BYTES,
+      })
+      .pipe(
+        Effect.mapError(
+          (cause) => new PreviewStopLocalServerError({ reason: "signal-failed", cause }),
+        ),
+      );
+    const exitCode = result.code === null ? null : Number(result.code);
+    if (exitCode === 0 || exitCode === WINDOWS_TASKKILL_NOT_FOUND_EXIT_CODE) return;
+    const detail = `${result.stderr}\n${result.stdout}`.trim();
+    return yield* new PreviewStopLocalServerError({
+      reason: "signal-failed",
+      cause: detail.length === 0 ? `taskkill exited ${exitCode ?? "without a code"}` : detail,
+    });
+  });
+
   const signalUntilStopped = Effect.fn("PortDiscovery.signalUntilStopped")(function* (
     input: PreviewStopLocalServerInput,
   ) {
-    if (hostPlatform === "win32") {
-      return yield* new PreviewStopLocalServerError({ reason: "unsupported" });
-    }
     // A socket can outlive its cached owner. Wait for any in-flight scan before invalidating
     // that owner, so the /proc fallback confirms who holds it before a signal is sent.
     yield* scanSemaphore.withPermits(1)(
@@ -1201,6 +1226,8 @@ export const make = Effect.gen(function* PortDiscoveryMake() {
       (server) => server.pid === input.pid && server.port === input.port && isOwned(server),
     );
     if (!listed) return yield* new PreviewStopLocalServerError({ reason: "not-found" });
+    // t4code: Windows has no POSIX process groups; taskkill stops the validated server tree.
+    if (hostPlatform === "win32") return yield* stopWindowsProcessTree(input);
     const table = yield* readProcessTable;
     // It exited after the scan, so there is nothing left to stop.
     if (!table.has(input.pid)) return;

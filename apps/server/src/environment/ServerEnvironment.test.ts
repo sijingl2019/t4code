@@ -191,6 +191,23 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("ServerEnvironmen
       expect(descriptor.capabilities.voiceTranscription).toBe(host.supported);
     }),
   );
+  it.effect("advertises local server stop on Windows", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const baseDir = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "t4-server-environment-windows-stop-test-",
+      });
+      const descriptor = yield* Effect.gen(function* () {
+        const serverEnvironment = yield* ServerEnvironment.ServerEnvironment;
+        return yield* serverEnvironment.getDescriptor;
+      }).pipe(
+        Effect.provide(layerServerEnvironment(baseDir)),
+        Effect.provideService(HostProcess.Platform, "win32"),
+        Effect.provideService(HostProcess.Architecture, "x64"),
+      );
+      expect(descriptor.capabilities.localServerStop).toBe(true);
+    }),
+  );
   it.effect.each([
     { name: "missing", content: undefined },
     { name: "empty", content: "" },

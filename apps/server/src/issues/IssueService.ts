@@ -129,7 +129,8 @@ export function buildIssuePrompt(
     lines.push(
       "",
       "## 附件（已下载到本地）",
-      ...options.attachmentPaths.map((path) => `- ${path}`),
+      // Inline code makes the client render the path as a clickable file chip.
+      ...options.attachmentPaths.map((path) => `- \`${path}\``),
     );
   }
   if (options.auto) {

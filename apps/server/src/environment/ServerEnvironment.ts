@@ -272,7 +272,7 @@ export const make = Effect.gen(function* () {
       threadPullRequestLinking: true,
       serverResolvedCommandContext: true,
       threadStop: true,
-      ...(hostPlatform === "win32" ? {} : { localServerStop: true }),
+      localServerStop: true, // t4code: Windows stops a validated server process tree with taskkill
       previewTunnelSetting: true,
       environmentIcon: true,
       projectCloneTracking: true,

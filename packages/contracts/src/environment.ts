@@ -144,7 +144,7 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   threadPullRequestLinking: Schema.optionalKey(Schema.Boolean),
   serverResolvedCommandContext: Schema.optionalKey(Schema.Boolean),
   threadStop: Schema.optionalKey(Schema.Boolean),
-  /** Absent on older servers and on Windows hosts, which cannot stop a discovered server. */
+  /** Absent on older servers that cannot stop a discovered server. */
   localServerStop: Schema.optionalKey(Schema.Boolean),
   /** Honors `enablePreviewTunnel`; hide the switch where absent, since the tunnel stays on there. */
   previewTunnelSetting: Schema.optionalKey(Schema.Boolean),
