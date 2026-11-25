@@ -554,6 +554,47 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     ),
   );
 
+  it.effect("uses T4 Code GitHub releases when no repository is configured", () =>
+    Effect.gen(function* () {
+      const release = yield* createBuildConfig(
+        "win",
+        "nsis",
+        "0.1.11",
+        false,
+        false,
+        undefined,
+        undefined,
+      );
+
+      assert.deepStrictEqual(release.publish, [
+        {
+          provider: "github",
+          owner: "sijingl2019",
+          repo: "t4code",
+          releaseType: "release",
+        },
+      ]);
+    }).pipe(Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })))),
+  );
+
+  it.effect("uses the mock update feed when mock updates are enabled", () =>
+    Effect.gen(function* () {
+      const release = yield* createBuildConfig(
+        "win",
+        "nsis",
+        "0.1.11",
+        false,
+        true,
+        3000,
+        undefined,
+      );
+
+      assert.deepStrictEqual(release.publish, [
+        { provider: "generic", url: "http://localhost:3000" },
+      ]);
+    }).pipe(Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })))),
+  );
+
   it.effect("names the Electron window class in the Linux desktop entry", () =>
     Effect.gen(function* () {
       const linux = yield* createBuildConfig(
@@ -1564,7 +1605,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     });
 
     assert.deepStrictEqual(configuration, {
-      appId: "com.t3tools.t3code",
+      appId: "com.t4code.app",
       teamId: "ABC1234567",
       rpDomains: ["example.clerk.accounts.dev"],
       provisioningProfilePath: "/tmp/t3code.provisionprofile",
@@ -1587,7 +1628,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       "clerk.example.com",
       "example.clerk.accounts.dev",
     ]);
-    assert.include(entitlements, "<string>ABC1234567.com.t3tools.t3code</string>");
+    assert.include(entitlements, "<string>ABC1234567.com.t4code.app</string>");
     assert.include(entitlements, "<string>webcredentials:clerk.example.com</string>");
     assert.include(entitlements, "<string>webcredentials:example.clerk.accounts.dev</string>");
     assert.include(entitlements, "<key>com.apple.security.cs.allow-jit</key>");
