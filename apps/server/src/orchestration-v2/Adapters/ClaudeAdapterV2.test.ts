@@ -16269,6 +16269,16 @@ describe("ClaudeAdapterV2 background wake turns", () => {
       yield* harness.awaitTerminal(1);
 
       yield* harness.offerAndWait(wakeNotification);
+      // The CLI follows a finished task's notification with an empty roster level.
+      yield* harness.offerAndWait(
+        claudeSdkFrame({
+          type: "system",
+          subtype: "background_tasks_changed",
+          tasks: [],
+          uuid: "00000000-0000-4000-8000-000000000111",
+          session_id: WAKE_NATIVE_SESSION,
+        }),
+      );
       assert.lengthOf(harness.continuationRequests, 0);
       yield* harness.offerAndWait(wakeTurnInit);
       assert.lengthOf(harness.continuationRequests, 1);
@@ -16290,6 +16300,8 @@ describe("ClaudeAdapterV2 background wake turns", () => {
       assert.lengthOf(harness.terminalEvents(), 1);
 
       yield* harness.offerAndWait(wakeAssistant);
+      // The finished command must leave the roster as soon as its wake turn consumed the notification.
+      assert.deepEqual(publishedRoster(harness), []);
       yield* harness.offerAndWait(wakeResult);
       yield* harness.awaitTerminal(2);
       assert.equal(harness.terminalEvents()[1]?.status, "completed");

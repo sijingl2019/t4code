@@ -11715,6 +11715,15 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                 liveQuery.nativeThreadId,
                 message.task_id,
               );
+              // t4code: the tombstone kept the finished task published as owed; republish now it is delivered.
+              const published = (yield* Ref.get(lastProviderThreadByNativeThread)).get(
+                liveQuery.nativeThreadId,
+              );
+              if (
+                published?.pendingBackgroundTasks?.some((task) => task.taskId === message.task_id)
+              ) {
+                yield* emitRosterUpdate(liveQuery.nativeThreadId, context);
+              }
             }
           }
 
