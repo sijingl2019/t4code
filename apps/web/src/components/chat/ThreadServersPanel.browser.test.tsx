@@ -35,18 +35,23 @@ vi.mock(import("../../localApi"), async (importOriginal) => ({
 
 vi.mock(import("../../portDiscoveryState"), async (importOriginal) => ({
   ...(await importOriginal()),
-  useThreadDiscoveredPorts: () =>
-    Array.from(
-      { length: 10 },
-      (_, index) =>
-        ({
-          pid: index,
-          port: 3000 + index,
-          url: `http://localhost:${3000 + index}`,
-          terminal: null,
-          processName: "node",
-        }) as DiscoveredLocalServer,
+  useDiscoveredPortsState: () => ({
+    configuredUrlProbing: false,
+    servers: ["a", "b"].flatMap((threadId) =>
+      Array.from(
+        { length: 10 },
+        (_, index) =>
+          ({
+            pid: index,
+            port: 3000 + index,
+            url: `http://localhost:${3000 + index}`,
+            terminal: null,
+            agent: { threadId },
+            processName: "node",
+          }) as DiscoveredLocalServer,
+      ),
     ),
+  }),
 }));
 
 import { render } from "../../../test/render";

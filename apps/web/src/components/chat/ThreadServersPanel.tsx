@@ -6,6 +6,7 @@ import {
   AuthTerminalOperateScope,
   type DiscoveredLocalServer,
   type EnvironmentId,
+  type ScopedThreadRef,
   type ThreadId,
 } from "@t3tools/contracts";
 import {
@@ -31,7 +32,8 @@ import {
 } from "../../browser/browserTargetResolver";
 import { readLocalApi } from "../../localApi";
 import { cn, isMacPlatform } from "../../lib/utils";
-import { useThreadDiscoveredPorts } from "../../portDiscoveryState";
+import { useDiscoveredPortsState } from "../../portDiscoveryState";
+import { useQuietThreadShells } from "../../state/entities";
 import { useEnvironment } from "../../state/environments";
 import {
   canForwardPorts,
@@ -69,9 +71,64 @@ export function ThreadServersPanel(props: ThreadServersPanelProps) {
   return <ThreadServersList key={`${props.environmentId}:${props.threadId}`} {...props} />;
 }
 
+// t4code: one hook per owning thread, so a row can restart another thread's terminal.
+function RestartServerButton(props: {
+  readonly threadRef: ScopedThreadRef;
+  readonly terminalId: string;
+  readonly port: number;
+}) {
+  const gt = useGT();
+  const restartTerminal = useRestartTerminal(props.threadRef);
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <ThreadDetailsControl
+            size="icon-xs"
+            variant="ghost"
+            part="icon"
+            aria-label={gt("Restart localhost:{port}", { port: props.port })}
+            onClick={() => restartTerminal(props.terminalId)}
+          />
+        }
+      >
+        <RotateCcwIcon aria-hidden className="size-3.5" />
+      </TooltipTrigger>
+      <TooltipPopup side="left">
+        <T>Restart server</T>
+      </TooltipPopup>
+    </Tooltip>
+  );
+}
+
 function ThreadServersList(props: ThreadServersPanelProps) {
   const gt = useGT();
-  const servers = useThreadDiscoveredPorts(props);
+  // t4code: servers of every thread in the same project, this thread's first.
+  const environmentPorts = useDiscoveredPortsState(props.environmentId).servers;
+  const shells = useQuietThreadShells();
+  const projectId = shells.find(
+    (shell) => shell.environmentId === props.environmentId && shell.id === props.threadId,
+  )?.projectId;
+  const titles = new Map(
+    shells
+      .filter(
+        (shell) =>
+          shell.environmentId === props.environmentId &&
+          (shell.id === props.threadId ||
+            (projectId !== undefined && shell.projectId === projectId)),
+      )
+      .map((shell) => [shell.id, shell.title] as const),
+  );
+  const inProject = (id: ThreadId) => id === props.threadId || titles.has(id);
+  const ownerOf = (server: DiscoveredLocalServer) =>
+    [server.terminal?.threadId, server.agent?.threadId].find(
+      (id): id is ThreadId => id !== undefined && inProject(id),
+    );
+  const servers = environmentPorts
+    .filter((server) => ownerOf(server) !== undefined)
+    .toSorted(
+      (a, b) => Number(ownerOf(b) === props.threadId) - Number(ownerOf(a) === props.threadId),
+    );
   const canOpen = useEnvironmentScope(props.environmentId, AuthPreviewOperateScope);
   const canStop = useAtomValue(
     previewEnvironment.stopLocalServer.permissionAtom(props.environmentId),
@@ -93,7 +150,6 @@ function ThreadServersList(props: ThreadServersPanelProps) {
   const [forwardingPort, setForwardingPort] = useState<number | null>(null);
   const [visibleCount, setVisibleCount] = useState(SERVER_PAGE_COUNT);
   const canRestart = useEnvironmentScope(props.environmentId, AuthTerminalOperateScope); // t4code
-  const restartTerminal = useRestartTerminal(scopeThreadRef(props.environmentId, props.threadId));
 
   if (servers.length === 0) return null;
   const externalClickLabel = isMacPlatform(navigator.platform) ? "⌘-click" : "Ctrl-click";
@@ -193,11 +249,14 @@ function ThreadServersList(props: ThreadServersPanelProps) {
           const key = serverKey(server);
           const stoppable = canStop && supportsStop && server.pid !== null;
           const forward = findPortForward(forwards, props.environmentId, server.port);
-          // t4code: a server started in one of this thread's terminals can be restarted.
+          // t4code: a server started in a project thread's terminal can be restarted.
           const restartTerminalId =
-            canRestart && server.terminal?.threadId === props.threadId
+            canRestart && server.terminal && inProject(server.terminal.threadId)
               ? server.terminal.terminalId
               : null;
+          const ownerId = ownerOf(server);
+          const otherThreadTitle =
+            ownerId !== undefined && ownerId !== props.threadId ? titles.get(ownerId) : undefined;
           const actionCount =
             Number(stoppable) + Number(canForward) + Number(restartTerminalId !== null);
           return (
@@ -247,6 +306,7 @@ function ThreadServersList(props: ThreadServersPanelProps) {
                           ? gt("Agent", { $context: "who started a dev server" })
                           : gt("Terminal", { $context: "who started a dev server" }),
                         server.processName,
+                        otherThreadTitle,
                       ]
                         .filter(Boolean)
                         .join(" · ")}
@@ -309,25 +369,12 @@ function ThreadServersList(props: ThreadServersPanelProps) {
                       )}
                     </SharedTooltipTrigger>
                   ) : null}
-                  {restartTerminalId !== null ? (
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <ThreadDetailsControl
-                            size="icon-xs"
-                            variant="ghost"
-                            part="icon"
-                            aria-label={gt("Restart localhost:{port}", { port: server.port })}
-                            onClick={() => restartTerminal(restartTerminalId)}
-                          />
-                        }
-                      >
-                        <RotateCcwIcon aria-hidden className="size-3.5" />
-                      </TooltipTrigger>
-                      <TooltipPopup side="left">
-                        <T>Restart server</T>
-                      </TooltipPopup>
-                    </Tooltip>
+                  {restartTerminalId !== null && server.terminal ? (
+                    <RestartServerButton
+                      threadRef={scopeThreadRef(props.environmentId, server.terminal.threadId)}
+                      terminalId={restartTerminalId}
+                      port={server.port}
+                    />
                   ) : null}
                   {stoppable ? (
                     <SharedTooltipTrigger

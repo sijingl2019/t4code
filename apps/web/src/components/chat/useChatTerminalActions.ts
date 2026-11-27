@@ -40,6 +40,7 @@ import { cycleThreadTerminal } from "../../lib/cycleThreadTerminal";
 import { confirmTerminalClose } from "../../lib/terminalCloseConfirm";
 import { findReusableProjectScriptTerminal } from "../../lib/projectScriptTerminal";
 import {
+  actionTerminalId, // t4code
   findActionTerminal,
   forgetActionTerminal,
   rememberActionTerminal,
@@ -238,12 +239,11 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
       ...new Set([...terminalUiState.terminalIds, ...activeServerOrderedTerminalIds]),
     ];
     const pendingClosingTerminalIds = activeThreadRef ? closingTerminalIds(activeThreadRef) : [];
-    const canFindOwnedTerminal =
-      reuseActionTerminal &&
-      canReuseTerminal &&
-      readEnvironmentScope(environmentId, AuthTerminalReadScope);
+    // t4code: an Action's own terminal is reused by id from the drawer UI state, so it does not
+    // wait for the server session list (a refresh of that list used to open a second terminal).
+    const remembered = activeThreadRef ? actionTerminalId(activeThreadRef, script.id) : null;
     const ownedTerminalId =
-      canFindOwnedTerminal && activeThreadRef
+      reuseActionTerminal && activeThreadRef
         ? findActionTerminal({
             target: activeThreadRef,
             actionId: script.id,
@@ -252,6 +252,14 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
             closingTerminalIds: pendingClosingTerminalIds,
           })
         : null;
+    // t4code: temporary diagnostic for "Action opened a second terminal".
+    if (reuseActionTerminal && remembered !== null && ownedTerminalId === null)
+      console.warn("[t4code] action terminal not reused", {
+        remembered,
+        drawerTerminalIds,
+        panelTerminalIds: [...panelTerminalIds],
+        closing: pendingClosingTerminalIds,
+      });
     const reusableTerminalId =
       ownedTerminalId ??
       (reuseActionTerminal ||
