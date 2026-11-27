@@ -1,5 +1,5 @@
-import { thrownErrorMessage } from "@t3tools/client-runtime/errors";
 import { ThreadDetailsControl } from "./chat/ThreadDetailsControl";
+import { contextMenuSourceOf } from "../contextMenuSource";
 import { ComposerContextLabel } from "./ComposerContextLabel";
 import { useRightPanelStore } from "../rightPanelStore";
 import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
@@ -17,7 +17,6 @@ import {
 } from "@t3tools/contracts";
 import { msg, T, useGT, useMessages, Var } from "gt-react";
 import { GitBranchIcon } from "lucide-react";
-import { m } from "../i18n/messages";
 import {
   useEffect,
   useEffectEvent,
@@ -66,6 +65,7 @@ import {
   resolveEffectiveEnvMode,
   sanitizeNewRefName,
   shouldIncludeBranchPickerItem,
+  toBranchActionErrorMessage,
 } from "./BranchToolbar.logic";
 import {
   ThreadPullRequestBadgeControl,
@@ -106,9 +106,11 @@ const WORKTREE_CHANGE_BLOCKED_MESSAGE = msg("Stop the current turn to switch wor
 
 type BranchMenuAction = "checkout" | "create" | "merge" | "delete" | "rename" | "copy-branch-name";
 
-function toBranchActionErrorMessage(error: unknown): string {
-  return thrownErrorMessage(error, m) ?? m(msg("An error occurred."));
-}
+// Picker checkouts by environment and checkout: null while in flight, then the branch it landed
+// on. Shared because a draft thread mounts two selectors on one checkout, and the switch's own
+// settle reloads refs for both.
+const pickerCheckouts = new Map<string, string | null>();
+const pickerCheckoutKey = (environmentId: string, cwd: string) => `${environmentId}\u0000${cwd}`;
 
 export function BranchToolbarBranchSelector({
   forceNewWorktree = false,
@@ -509,12 +511,14 @@ export function BranchToolbarBranchSelector({
     }
 
     const selectedBranchName = refName.isRemote
-      ? deriveLocalBranchNameFromRemoteRef(refName.name)
+      ? deriveLocalBranchNameFromRemoteRef(refName.name, refName.remoteName)
       : refName.name;
 
     runBranchAction(async () => {
       const previousBranch = resolvedActiveBranch;
       setOptimisticBranch(selectedBranchName);
+      const checkoutKey = pickerCheckoutKey(environmentId, selectionTarget.checkoutCwd);
+      pickerCheckouts.set(checkoutKey, null);
       const checkoutResult = await switchRef({
         environmentId,
         input: {
@@ -526,6 +530,7 @@ export function BranchToolbarBranchSelector({
         const nextBranchName = refName.isRemote
           ? (checkoutResult.value.refName ?? selectedBranchName)
           : selectedBranchName;
+        pickerCheckouts.set(checkoutKey, nextBranchName);
         const movesCheckout = selectionTarget.checkoutCwd !== branchCwd;
         let hold: BranchHold | null = null;
         const applied = setThreadBranch(
@@ -559,6 +564,7 @@ export function BranchToolbarBranchSelector({
         setOptimisticBranch(applied ? nextBranchName : previousBranch);
         return;
       }
+      pickerCheckouts.delete(checkoutKey);
       setOptimisticBranch(previousBranch);
       if (!isAtomCommandInterrupted(checkoutResult)) {
         toastManager.add(
@@ -584,6 +590,8 @@ export function BranchToolbarBranchSelector({
     runBranchAction(async () => {
       const previousBranch = resolvedActiveBranch;
       setOptimisticBranch(name);
+      const checkoutKey = pickerCheckoutKey(environmentId, branchCwd);
+      pickerCheckouts.set(checkoutKey, null);
       const createBranchResult = await createRefMutation({
         environmentId,
         input: {
@@ -595,6 +603,7 @@ export function BranchToolbarBranchSelector({
       });
       if (createBranchResult._tag === "Success") {
         const nextBranchName = createBranchResult.value.refName;
+        pickerCheckouts.set(checkoutKey, nextBranchName);
         const applied = setThreadBranch(nextBranchName, activeWorktreePath);
         if (applied) {
           setBranchHold({
@@ -606,6 +615,7 @@ export function BranchToolbarBranchSelector({
         setOptimisticBranch(applied ? nextBranchName : previousBranch);
         return;
       }
+      pickerCheckouts.delete(checkoutKey);
       setOptimisticBranch(previousBranch);
       if (!isAtomCommandInterrupted(createBranchResult)) {
         toastManager.add(
@@ -694,80 +704,82 @@ export function BranchToolbarBranchSelector({
       separatorBefore: true,
     });
 
-    void api.contextMenu.show(items, { x: event.clientX, y: event.clientY }).then((action) => {
-      if (action === "copy-branch-name") {
-        copyBranchName(branchName);
-        return;
-      }
-      if (!refName || !branchCwd) return;
-      if (action === "checkout") {
-        void selectBranch(refName);
-        return;
-      }
-
-      setIsBranchMenuOpen(false);
-      if (action === "create") {
-        setCreateBranchBaseTarget(branchName);
-        return;
-      }
-      if (action === "rename") {
-        setRenameBranchTarget(branchName);
-        return;
-      }
-
-      void (async () => {
-        if (action === "delete") {
-          const confirmed = await api.dialogs.confirm(
-            `${gt('Delete branch "{branch}"?', { branch: branchName })}\n${gt("This cannot be undone.")}`,
-            { variant: "destructive" },
-          );
-          if (!confirmed) return;
-          runBranchAction(async () => {
-            const result = await deleteBranchMutation({
-              environmentId,
-              input: { cwd: branchCwd, refName: branchName },
-            });
-            if (result._tag === "Success" || isAtomCommandInterrupted(result)) return;
-            toastManager.add(
-              stackedThreadToast({
-                type: "error",
-                title: gt("Failed to delete branch."),
-                description: toBranchActionErrorMessage(squashAtomCommandFailure(result)),
-              }),
-            );
-          });
+    void api.contextMenu
+      .show(items, { x: event.clientX, y: event.clientY }, contextMenuSourceOf(event))
+      .then((action) => {
+        if (action === "copy-branch-name") {
+          copyBranchName(branchName);
+          return;
+        }
+        if (!refName || !branchCwd) return;
+        if (action === "checkout") {
+          void selectBranch(refName);
           return;
         }
 
-        if (action === "merge" && currentGitBranch) {
-          const confirmed = await api.dialogs.confirm(
-            gt('Merge "{branch}" into "{currentBranch}"?', {
-              branch: branchName,
-              currentBranch: currentGitBranch,
-            }),
-          );
-          if (!confirmed) return;
-          runBranchAction(async () => {
-            const result = await mergeBranchMutation({
-              environmentId,
-              input: { cwd: branchCwd, refName: branchName },
+        setIsBranchMenuOpen(false);
+        if (action === "create") {
+          setCreateBranchBaseTarget(branchName);
+          return;
+        }
+        if (action === "rename") {
+          setRenameBranchTarget(branchName);
+          return;
+        }
+
+        void (async () => {
+          if (action === "delete") {
+            const confirmed = await api.dialogs.confirm(
+              `${gt('Delete branch "{branch}"?', { branch: branchName })}\n${gt("This cannot be undone.")}`,
+              { variant: "destructive" },
+            );
+            if (!confirmed) return;
+            runBranchAction(async () => {
+              const result = await deleteBranchMutation({
+                environmentId,
+                input: { cwd: branchCwd, refName: branchName },
+              });
+              if (result._tag === "Success" || isAtomCommandInterrupted(result)) return;
+              toastManager.add(
+                stackedThreadToast({
+                  type: "error",
+                  title: gt("Failed to delete branch."),
+                  description: toBranchActionErrorMessage(squashAtomCommandFailure(result)),
+                }),
+              );
             });
-            await refreshLocalStatusForPicker({
-              environmentId,
-              input: { cwd: branchCwd, localOnly: true },
-            });
-            if (result._tag === "Success" || isAtomCommandInterrupted(result)) return;
-            toastManager.add(
-              stackedThreadToast({
-                type: "error",
-                title: gt("Failed to merge branch."),
-                description: toBranchActionErrorMessage(squashAtomCommandFailure(result)),
+            return;
+          }
+
+          if (action === "merge" && currentGitBranch) {
+            const confirmed = await api.dialogs.confirm(
+              gt('Merge "{branch}" into "{currentBranch}"?', {
+                branch: branchName,
+                currentBranch: currentGitBranch,
               }),
             );
-          });
-        }
-      })();
-    });
+            if (!confirmed) return;
+            runBranchAction(async () => {
+              const result = await mergeBranchMutation({
+                environmentId,
+                input: { cwd: branchCwd, refName: branchName },
+              });
+              await refreshLocalStatusForPicker({
+                environmentId,
+                input: { cwd: branchCwd },
+              });
+              if (result._tag === "Success" || isAtomCommandInterrupted(result)) return;
+              toastManager.add(
+                stackedThreadToast({
+                  type: "error",
+                  title: gt("Failed to merge branch."),
+                  description: toBranchActionErrorMessage(squashAtomCommandFailure(result)),
+                }),
+              );
+            });
+          }
+        })();
+      });
   };
 
   const createBranchFromBase = (nextBranchName: string) => {
@@ -806,7 +818,7 @@ export function BranchToolbarBranchSelector({
     if (branchCwd === null) return;
     void refreshLocalStatusForPicker({
       environmentId,
-      input: { cwd: branchCwd, localOnly: true },
+      input: { cwd: branchCwd },
     });
   });
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- refs listed while the project was cloning are empty; reload them past the server's snapshot when the clone finishes
@@ -816,7 +828,15 @@ export function BranchToolbarBranchSelector({
   // A checkout made outside T4 Code, such as a clone finishing, leaves refs listed before it.
   const statusBranch = branchStatusQuery.data?.refName ?? null;
   const refreshRefsMissingStatusBranch = useEffectEvent((branch: string | null) => {
-    if (isInitialBranchesLoadPending || branch === null) return;
+    if (branch === null || branchCwd === null) return;
+    // Kept until the checkout reports another branch, so every selector on it skips the refresh.
+    const checkoutKey = pickerCheckoutKey(environmentId, branchCwd);
+    if (pickerCheckouts.has(checkoutKey)) {
+      const pickerBranch = pickerCheckouts.get(checkoutKey);
+      if (pickerBranch === null || pickerBranch === branch) return;
+      pickerCheckouts.delete(checkoutKey);
+    }
+    if (isInitialBranchesLoadPending) return;
     if (branchByName.get(branch)?.current !== true) refreshStaleRefs();
   });
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- reloads refs from the server once per branch live status reports that they do not list as checked out
@@ -852,7 +872,7 @@ export function BranchToolbarBranchSelector({
     if (open && !isBranchMenuOpen && branchCwd !== null) {
       void refreshLocalStatusForPicker({
         environmentId,
-        input: { cwd: branchCwd, localOnly: true },
+        input: { cwd: branchCwd },
       });
     }
     if (!open) {

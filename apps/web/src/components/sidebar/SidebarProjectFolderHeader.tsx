@@ -19,6 +19,7 @@ import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { OnesIssuePickerDialog, useHasIssueBinding } from "./OnesIssuePickerDialog";
 import { ProjectFolderMenu } from "./ProjectFolderMenu";
+import { SharedTooltipTrigger } from "../ui/shared-tooltip";
 
 const FOLDER_DOT_CLASS_NAME = {
   attention: "bg-warning",
@@ -164,26 +165,26 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
           </Tooltip>
         ) : null}
         <ProjectFolderMenu group={group} onOpenSettings={props.onOpenSettings} />
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                data-sidebar-action-for={rowId}
-                size="icon-xs"
-                variant="ghost-muted"
-                aria-label={gt("New thread in {project}", { project: group.displayName })}
-                onClick={() => props.onNewThread(group)}
-              />
-            }
-          >
-            <SquarePenIcon aria-hidden />
-          </TooltipTrigger>
-          <TooltipPopup>
-            <T>
-              New thread in <Var>{group.displayName}</Var>
-            </T>
-          </TooltipPopup>
-        </Tooltip>
+        <SharedTooltipTrigger
+          render={
+            <Button
+              data-sidebar-action-for={rowId}
+              size="icon-xs"
+              variant="ghost-muted"
+              aria-label={gt("New thread in {project}", { project: group.displayName })}
+              onClick={() => props.onNewThread(group)}
+            />
+          }
+          label={
+            <>
+              <T>
+                New thread in <Var>{group.displayName}</Var>
+              </T>
+            </>
+          }
+        >
+          <SquarePenIcon aria-hidden />
+        </SharedTooltipTrigger>
       </span>
       {hasIssueBinding ? (
         <OnesIssuePickerDialog

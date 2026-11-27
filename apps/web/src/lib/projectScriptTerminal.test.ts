@@ -1,9 +1,11 @@
+import { scopeThreadRef } from "@t3tools/client-runtime/environment";
+import { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import { findActionTerminal, rememberActionTerminal } from "./actionTerminal";
 import { findReusableProjectScriptTerminal } from "./projectScriptTerminal";
 
-const target = { environmentId: "env-1", threadId: "thread-1" } as const;
+const target = scopeThreadRef(EnvironmentId.make("env-1"), ThreadId.make("thread-1"));
 
 describe("findActionTerminal", () => {
   it.each([
