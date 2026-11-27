@@ -53,7 +53,7 @@ product name "T4 Code"):
 `packages/shared/src/{codexAuthHandoff,providerAuthReturnUrl}.ts`, `scripts/build-desktop-artifact.ts`
 (also: staged package name `t4code` so the default install dir is `%LOCALAPPDATA%\Programs\t4code`, not T3's;
 mac/linux protocol schemes `t4code`; NSIS assisted installer with a choosable install directory;
-`WINDOWS_PACKAGED_PAYLOAD_FILE_LIMIT` raised from 80 to 100, the current payload is 89 files; `apps/desktop/resources/installer.nsh` `customHeader` undefines
+`WINDOWS_PACKAGED_PAYLOAD_FILE_LIMIT` raised from 80 to 120, the current payload is 105 files; `apps/desktop/resources/installer.nsh` `customHeader` undefines
 `allowToChangeInstallationDirectory` after the directory page so reinstalling into the same folder
 keeps shortcuts and the taskbar pin).
 
